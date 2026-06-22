@@ -14,7 +14,7 @@ Esto genera pyproject.toml, un .python-version, un README.md placeholder y un .g
 
 # Ejecutar un script
 	uv run python ...
-
+	
 # .gitignore
 	.venv/
 	__pycache__/
