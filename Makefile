@@ -15,6 +15,6 @@ clean:
 	rm -rf __pycache__ .mypy_cache src/__pycache__ .pytest_cache
 	find . -name '*.pyc' -delete
 
-lint: 
-	uv run flake8 .
-	uv run mypy . --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
+lint:
+	@uv run flake8 . --exclude=.venv,data,llm_sdk,__pycache__
+	@uv run mypy . --exclude "(.venv|data|llm_sdk)" --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
