@@ -5,6 +5,12 @@
 install:
 	@uv sync
 
+# Captura todo lo que vaya después de 'run'
+ifeq (run,$(firstword $(MAKECMDGOALS)))
+  RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  $(eval $(RUN_ARGS):;@:)
+endif
+
 run:
 	@clear
 	@$(MAKE) install --no-print-directory
@@ -27,7 +33,8 @@ run:
 	@echo "                       ~ CALL ME MAYBE ~"
 	@echo "\033[0m"
 	@echo "\n"
-	@uv run python -m src
+	@uv run python -m src $(MAKECMDGOALS)
+# 	@uv run python -m src
 	@echo "\033[1;31m"
 	@echo "\nEND OF PROGRAM - SEE YOU SOON!"
 	@echo "\033[0m"
