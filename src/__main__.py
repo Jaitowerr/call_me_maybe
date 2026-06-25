@@ -1,11 +1,8 @@
 import sys
-
+from src.object.parse import Config
 
 
 if __name__ == "__main__":
-    print("Hello from call-me-maybe!")
-
-    variable = sys.argv
-    if variable:
-        for var in variable:
-            print(var)
+    rutas = Config.parse_arguments(sys.argv[1:])
+    print(rutas.input_path)
+    print(rutas.output_path)
