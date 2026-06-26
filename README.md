@@ -248,6 +248,15 @@ Lógica estructurada para la implementación del algoritmo de generación:
 
 
 
+
+
+
+
+
+
+
+
+
 PROMPT MAESTRO:
 
 He leído ambos documentos en detalle. Aquí tienes el prompt maestro:

@@ -51,4 +51,4 @@ lint:
 
 %:
 	@:
-# make run -- --input data/input/example.json --output data/output/function_calling_results.json
+# make run -- --input data/input/function_calling_tests.json --output data/output/function_calling_results.json
