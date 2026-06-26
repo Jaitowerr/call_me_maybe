@@ -50,3 +50,24 @@ class Config(BaseModel):
             print(f'  - ', e)
             sys.exit(1)
             
+    def create_output_directory(self) -> None:
+        """
+        Verifica si existe el directorio de la ruta de salida y lo crea si no existe.
+        Gestiona errores de permisos o cualquier otra excepción del sistema.
+        """
+        try:
+            # Extraemos solo la ruta sin el .json)
+            output_dir = os.path.dirname(self.output_path)
+            # print(output_dir)
+            
+            if output_dir:
+                os.makedirs(output_dir, exist_ok=True)
+                
+        except PermissionError:
+            print(f"\033[1;31m\n[ERROR DE PERMISOS]\033[0m")
+            print(f"  - No tienes permisos para crear el directorio de salida: '{output_dir}'")
+            sys.exit(1)
+        except Exception as e:
+            print(f"\033[1;31m\n[ERROR AL CREAR DIRECTORIO]\033[0m")
+            print(f"  - Ocurrió un error inesperado al crear '{output_dir}': {e}")
+            sys.exit(1)
