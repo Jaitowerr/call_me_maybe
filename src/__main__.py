@@ -41,9 +41,14 @@ if __name__ == "__main__":
 
     print('Creamos un str de cada funcion para tokeizar luego')
     # for _ in list_func_def: _.build_signature()   # La llevamos dentro de tokenize_signature
+    print('------------')
+
     ai_model = LLMWrapper()
+    print('------------')
 
     for _ in list_prompt: _.tokenize(ai_model.encode_text)
+    print('------------')
     for _ in list_func_def: _.tokenize_signature(ai_model.encode_text)
+    print('fiiiin')
 
 

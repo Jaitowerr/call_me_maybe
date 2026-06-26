@@ -104,7 +104,7 @@ class Func_def(BaseModel):
         """Tokeniza la firma usando la función dada."""
         if self.signature is None:
             self.build_signature()
-        self.signature_tk = encoder_func(self.signatura)
+        self.signature_tk = encoder_func(self.signature)
 
 
 

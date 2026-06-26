@@ -1,8 +1,8 @@
-from llm_sdk.llm_sdk import Small_LLM_Model
+from llm_sdk import Small_LLM_Model
 from typing import List
 from pydantic import BaseModel
 
-class LLMWrapper(BaseModel):
+class LLMWrapper():
 	def __init__(self, model_name: str = 'Qwen/Qwen3-0.6B'):
 		self.model = Small_LLM_Model(model_name)
 	
@@ -17,14 +17,4 @@ class LLMWrapper(BaseModel):
 	def decode_ids(self, ids: List[int]) -> str:
 		"""Convierte lista de IDs -> texto."""
 		return self.model.decode(ids)
-
-
-
-
-
-
-
-
-
-
 
