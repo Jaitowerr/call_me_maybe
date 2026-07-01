@@ -9,3 +9,6 @@ export HF_HUB_CACHE="$HF_HOME/hub"
 
 export TMPDIR="$CALLME_STORAGE/tmp"
 export XDG_CACHE_HOME="$CALLME_STORAGE/xdg-cache"
+
+
+# uv cache dir

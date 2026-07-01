@@ -81,8 +81,6 @@ class Func_def(BaseModel):
 
         return definitions
     
-
-
     def build_signature(self):
         """Construye la firma textual de la función."""
         parameters = []
@@ -101,13 +99,22 @@ class Func_def(BaseModel):
         print(self.signature)   # eliminar despues
 
     def tokenize_signature(self, encoder_func):
-        """Tokeniza la firma usando la función dada."""
+        """
+        Tokeniza la firma usando la función dada.
+        Valida que el resultado sea una lista de enteros.
+        """
         if self.signature is None:
             self.build_signature()
-        self.signature_tk = encoder_func(self.signature)
+        try:
+            tokens = encoder_func(self.signature)
+            if not isinstance(tokens, list):
+                raise Exception("El resultado no es una lista.")
+            if not all(isinstance(_, int) for _ in tokens):
+                raise Exception("La lista contiene elementos que no son enteros.")
 
-
-
-
-
+            self.signature_tk = tokens
+        except Exception as e:
+            print(f"Error crítico durante la tokenización de la firma de '{self.name}': {e}")
+            sys.exit(1)
+            
 

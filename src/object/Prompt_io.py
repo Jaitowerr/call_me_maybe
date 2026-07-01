@@ -66,6 +66,20 @@ class Prompt_io(BaseModel):
 
 
     def tokenize(self, encoder_func) -> List[int]:
-        """Tokeniza el prompt usando la función dada (puede ser del SDK o mia)."""
-        self.prompt_tk = encoder_func(self.prompt)
+        """
+        Tokeniza el prompt usando la función dada (puede ser del SDK o mia).
+        Valida que el resultado sea una lista de enteros.
+        """
+        try:
+            tokens = encoder_func(self.prompt)
 
+            if not isinstance(tokens, list):
+                raise Exception("El resultado no es una lista.")
+            if not all(isinstance(_, int) for _ in tokens):
+                raise Exception("La lista contiene elementos que no son enteros.")
+            
+            self.prompt_tk = tokens
+        
+        except Exception as e:
+             print(f"Error crítico durante la tokenización del prompt: {e}")
+             sys.exit(1)
