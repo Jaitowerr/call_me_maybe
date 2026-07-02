@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 from pydantic import BaseModel
 import sys
 import json
@@ -16,12 +16,12 @@ class Func_def(BaseModel):
     parameters: Dict[str, Dict[str, str]] 
     returns: Dict[str, str]
     signature: str = None
-    signature_tk : List[str] = None
+    signature_tk : Optional[List[int]] = None	# tokenización del texto del prompt.
 
     @classmethod
     def load_func_def(cls, file_path: Path) -> List["Func_def"]:
         """
-        Lee function_definitions.json y devuelve una lista de Func_def.
+        Lee functions_definitions.json y devuelve una lista de Func_def.
         Formato esperado: lista de objetos con claves: name, description, parameters, returns
         """
         try:
@@ -96,7 +96,7 @@ class Func_def(BaseModel):
             f'Parameters: {parameters_join}. '
             f"Returns: {self.returns['type']}"
         )    
-        print(self.signature)   # eliminar despues
+        # print(self.signature)   # eliminar despues
 
     def tokenize_signature(self, encoder_func):
         """

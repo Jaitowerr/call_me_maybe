@@ -41,9 +41,14 @@ if __name__ == "__main__":
 
     ai_model = LLMWrapper()
     print('Creamos un str de cada funcion para tokeizar luego')
-
     for _ in list_prompt: _.tokenize(ai_model.encode_text)
+    print('---> tokeniazación str prompt Prompt_io')
     for _ in list_func_def: _.tokenize_signature(ai_model.encode_text)
-    print('fiiiin')
+    print('---> tokeniazación str de Func_def, funciones tokenizadas')
+    
+    
+    
+    
+    print('---------------------------------------------------> fiiiin')
 
 
