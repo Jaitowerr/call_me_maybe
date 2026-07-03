@@ -83,3 +83,9 @@ class Prompt_io(BaseModel):
         except Exception as e:
              print(f"Error crítico durante la tokenización del prompt: {e}")
              sys.exit(1)
+
+    def get_prompt_tk(self) -> List[int]:
+        if self.prompt_tk is None:
+            raise ValueError("El prompt no está tokenizado.")
+        return self.prompt_tk
+

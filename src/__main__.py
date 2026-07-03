@@ -1,10 +1,10 @@
-
 import sys
 from src.object.Parse import Config
 from src.object.Prompt_io import Prompt_io
 from src.object.Func_def import Func_def
 from pathlib import Path
 from src.llm.wrapper import LLMWrapper
+from src.llm.prompt_builder import PromptBuilder
 
 
 if __name__ == "__main__":
@@ -39,14 +39,21 @@ if __name__ == "__main__":
     rutas.create_output_directory()
     print('Ruta -output creada\n')
 
+    print('Creamos un str de cada funcion para tokeizar luego\n')
     ai_model = LLMWrapper()
-    print('Creamos un str de cada funcion para tokeizar luego')
+    
     for _ in list_prompt: _.tokenize(ai_model.encode_text)
     print('---> tokeniazación str prompt Prompt_io')
     for _ in list_func_def: _.tokenize_signature(ai_model.encode_text)
     print('---> tokeniazación str de Func_def, funciones tokenizadas')
     
-    
+    print("\n\n\n\n\n\n=== COMPROBANDO PROMPT BUILDER ===")
+    builder_tk = PromptBuilder(ai_model.encode_text)
+
+    for prompt in list_prompt:
+        full_prompt_tk = builder_tk.build_tk(prompt, list_func_def)
+        print(f"✅ Tokens generados: {len(full_prompt_tk)}")
+        print(f"    - PromptBuilder construyó correctamente el prompt : {prompt.prompt}")
     
     
     print('---------------------------------------------------> fiiiin')

@@ -18,3 +18,8 @@ class LLMWrapper():
 		"""Convierte lista de IDs -> texto."""
 		return self.model.decode(ids)
 
+	def load_vocab():
+		pass
+
+	def get_logits():
+		pass

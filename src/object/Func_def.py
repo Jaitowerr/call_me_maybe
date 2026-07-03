@@ -118,3 +118,7 @@ class Func_def(BaseModel):
             sys.exit(1)
             
 
+    def get_signature_tk(self) -> List[int]:
+        if self.signature_tk is None:
+            raise ValueError(f"La firma de {self.name} no está tokenizada.")
+        return self.signature_tk

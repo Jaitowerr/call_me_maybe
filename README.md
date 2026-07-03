@@ -1,3 +1,13 @@
+A CONTROLAR!!!!!
+  PARSEO:
+        "prompt": ""  Esto controlarlo como error, el prompt está vacío no contiene nada
+
+
+
+
+
+
+
 ## ENTORNO VIRTUAL UV
 
 ###  Crea el entorno virtual   "uv init"
