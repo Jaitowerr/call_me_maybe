@@ -1,7 +1,8 @@
 import os
 import sys
-from typing import List
+from typing import List, Any, Dict
 from pydantic import BaseModel, Field, field_validator, model_validator, ValidationError
+import json
 
 class Config(BaseModel):
     input_path: str = Field(default="data/input/function_calling_tests.json")
@@ -71,3 +72,18 @@ class Config(BaseModel):
             print(f"\033[1;31m\n[ERROR AL CREAR DIRECTORIO]\033[0m")
             print(f"  - Ocurrió un error inesperado al crear '{output_dir}': {e}")
             sys.exit(1)
+    
+    def write_output_json(self, result: List[Dict[str, Any]]) -> None:
+        """
+        Escribe el resultado en el fichero JSON de salida.
+        """
+        try:
+            if not isinstance(result,(dict, list)):
+                raise TypeError("El resultado debe ser un dict o una lista de dicts.")
+
+            with open(self.output_path, 'w', encoding = 'utf-8') as file:
+                json.dump(result, file, indent=4, ensure_ascii=False)   #ensure_ascii conserva caracteres UTF-8 correctamente.
+        except Exception as e:
+            print(f"[ERROR] No se pudo escribir el fichero de salida: {e}")
+            sys.exist(1)
+    

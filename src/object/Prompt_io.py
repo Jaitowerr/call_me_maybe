@@ -10,13 +10,13 @@ class Prompt_io(BaseModel):
     """
     Representa un prompt del archivo de entrada.
     - prompt: texto de la pregunta
-    - fn_name: nombre de la función seleccionada (rellenado más tarde)
-    - args: diccionario de argumentos (rellenado más tarde)
+    - fn_name: nombre de la función seleccionada (rellenado más tarde)	elinar lueugoo
+    - args: diccionario de argumentos (rellenado más tarde)	eliminar luego
     """
     prompt: str
     prompt_tk: Optional[List[int]] = None   # tokenización del texto del prompt.
-    fn_name: Optional[str] = None
-    args: Optional[Dict[str, Union[str, int, float, bool]]] = None
+    # fn_name: Optional[str] = None		#eliminar
+    # args: Optional[Dict[str, Union[str, int, float, bool]]] = None    #eliminar
 
     @classmethod
     def load_prompts(cls, file_path: Path) -> List[Prompt_io]:
