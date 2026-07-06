@@ -7,6 +7,64 @@ from src.llm.wrapper import LLMWrapper
 from src.llm.prompt_builder import PromptBuilder
 
 
+def prueba_completa_vocabulario_y_logits(ai_model, builder_tk):
+    print("\n\n\n\n\n=== PRUEBA DE GENERACIÓN TOKEN-A-TOKEN (SIN RESTRICCIONES) ===")
+
+    ai_model.load_vocab()
+    print(f"✅ Vocabulario cargado. Total tokens: {len(ai_model.id_to_tk_str)}\n")
+
+    if not list_prompt:
+        print("⚠️ No hay prompts para probar.")
+    else:
+        prompt = list_prompt[0]
+        full_prompt_tk = builder_tk.build_tk(prompt, list_func_def)
+
+        # Copia del contexto que iremos extendiendo
+        current_ids = list(full_prompt_tk)  # evita mutar el original accidentalmente
+
+        generated_ids = []  # solo los ids generados (no incluye el contexto)
+        generated_text = ""  # acumulador para ver el texto a nivel token (concatenando id_to_tk_str)
+
+        max_steps = 200  # tope para evitar loops infinitos
+        stop_when_seen_closing_brace = True
+
+        for step in range(max_steps):
+            logits = ai_model.get_logits(current_ids)
+
+            # elegir el id con mayor logit (argmax)
+            top_id = max(range(len(logits)), key=lambda i: logits[i])
+
+            # añadirlo a las secuencias
+            current_ids.append(top_id)
+            generated_ids.append(top_id)
+
+            # convertir el token a string usando el vocab
+            token_str = ai_model.id_to_tk_str.get(top_id, "<​UNK>")
+            generated_text += token_str
+
+            # imprimir progreso por pasos para debug
+            print(f"[{step+1:03d}] id={top_id} token={repr(token_str)}  --> texto_parcial: {repr(generated_text)}")
+
+            # condición simple de parada: si generó '}' y hay al menos algunos tokens generados
+            if stop_when_seen_closing_brace and ("}" in generated_text):
+                print("\n✅ Detectado '}' en la salida generada. Parando la prueba.")
+                break
+        else:
+            print("\n⚠️ Límite de pasos alcanzado sin detectar '}'.")
+
+        # Mostrar resultado final "detokenizado" si tienes decode_ids:
+        try:
+            final_text = ai_model.decode_ids(current_ids)  # si tu wrapper tiene decode_ids
+        except Exception:
+            # fallback: reconstruir a partir del vocab (menos preciso, pero útil)
+            final_text = "".join(ai_model.id_to_tk_str.get(i, "") for i in current_ids)
+
+        print("\n--- TEXTO FINAL GENERADO (por tokens) ---")
+        print(final_text)
+        print("\n--- IDS GENERADOS ---")
+        print(generated_ids)
+
+
 if __name__ == "__main__":
     rutas = Config.parse_arguments(sys.argv[1:])
     print("=== RUTAS ===")
@@ -55,6 +113,32 @@ if __name__ == "__main__":
         print(f"✅ Tokens generados: {len(full_prompt_tk)}")
         print(f"    - PromptBuilder construyó correctamente el prompt : {prompt.prompt}")
     
+
+    print("\n\n\n\n\n=== PRUEBA DE MODELO: VOCABULARIO Y LOGITS ===")
+    
+    ai_model.load_vocab()    # Cargar vocabulario una vez
+    print(f"✅ Vocabulario cargado. Total tokens: {len(ai_model.id_to_tk_str)}\n")
+
+    prueba_completa_vocabulario_y_logits(ai_model, builder_tk)
+    # Tomamos solo el primer prompt para esta prueba
+    # if list_prompt:
+    #     prompt = list_prompt[0]
+    #     full_prompt_tk = builder_tk.build_tk(prompt, list_func_def)
+    #     print(f"✅ Prompt tokenizado. Longitud: {len(full_prompt_tk)} tokens")
+
+    #     # Pedir logits al modelo
+    #     logits = ai_model.get_logits(full_prompt_tk)
+    #     print(f"✅ Logits obtenidos. Longitud: {len(logits)}")
+
+    #     # Buscar el token más probable (argmax)
+    #     top_id = max(range(len(logits)), key=lambda i: logits[i])
+    #     top_token = ai_model.id_to_tk_str.get(top_id, "<UNK>")
+    #     print(f"🧠 Siguiente token más probable:")
+    #     print(f"   ID: {top_id}")
+    #     print(f"   Texto: '{top_token}'")
+    # else:
+    #     print("⚠️ No hay prompts disponibles.")
+
     
     print('---------------------------------------------------> fiiiin')
 

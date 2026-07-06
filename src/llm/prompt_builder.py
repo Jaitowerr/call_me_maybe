@@ -17,7 +17,31 @@ class PromptBuilder():
         5. Concatenar todo
         """
         try:
-            instructions = 'You are a function calling assistant. Respond ONLY with a JSON object.\nAvailable functions:\n'
+            # instructions = 'You are a function calling assistant. Respond ONLY with a JSON object.\nAvailable functions:\n'
+            instructions = '''You are a function-calling assistant. Respond ONLY with a single JSON object that follows this EXACT schema:
+
+            {
+            "prompt": "<the original user prompt as a string>",
+            "fn_name": "<one of the available function names exactly>",
+            "args": { ... } 
+            }
+
+            Rules:
+            1. Always include the keys "prompt", "fn_name", and "args" in that order.
+            2. "prompt": copy verbatim the user prompt (string).
+            3. "fn_name": must be exactly one of the available function names (for example: fn_add_numbers, fn_greet, fn_reverse_string, fn_get_square_root, fn_substitute_string_with_regex).
+            4. "args": must be a JSON object whose keys and value types match the selected function's parameter specification. Numbers must be numeric (no quotes); strings must use double quotes.
+            5. Don't include additional keys.
+            6. No surrounding text, explanation, or punctuation — output must be the JSON object only.
+
+            Example:
+            {
+            "prompt": "What is the sum of 2 and 3?",
+            "fn_name": "fn_add_numbers",
+            "args": {"a": 2.0, "b": 3.0}
+            }
+            '''
+
             instructions_tk: List[int]= self.encoder_func(instructions)
 
             func_tk: List[int] = []

@@ -1,6 +1,7 @@
 A CONTROLAR!!!!!
   PARSEO:
         "prompt": ""  Esto controlarlo como error, el prompt está vacío no contiene nada
+        eliminar espacios antes del prompt es decir la cadena str si tiene espacios al principio o al final, limpiarla para prevenir de cosas extrañas o posibles errores
 
 
 
