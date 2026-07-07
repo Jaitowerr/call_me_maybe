@@ -73,14 +73,10 @@ class LLMWrapper():
 
 
     def _ids_a_texto(self, ids: List[int]) -> str:
-        texto = self.decode_ids(ids)
-        # Extraer solo lo que hay entre <json> y </json>
-        if "<json>" in texto and "</json>" in texto:
-            inicio = texto.index("<json>") + len("<json>")
-            fin = texto.index("</json>")
-            return texto[inicio:fin].strip()
-        # Si no hay etiquetas, devolver tal cual (fallback)
-        return texto.strip()
+        """
+        Convierte una lista de IDs generados por el modelo en texto.
+        """
+        return self.decode_ids(ids).strip()
 
 
     def _texto_a_dict(self, texto: str) -> Dict:
@@ -94,20 +90,52 @@ class LLMWrapper():
             print(f"[DEBUG] Texto recibido: {repr(texto)}")
             sys.exit(1)
 
+
     def _generar_ids(self, full_tk: List[int], prompt_tk: List[int]) -> List[int]:
         """
-        Bucle token a token sin restricciones (por ahora).
-        Devuelve solo los ids generados, sin el contexto inicial.
+        Genera una secuencia de tokens de respuesta mediante un bucle token a token.
+
+        En cada iteración:
+        1. Se obtienen los logits del modelo dado el contexto acumulado (current_ids).
+        2. Se aplica una máscara de logits (constrained decoding) para restringir
+            los tokens válidos según el estado actual de la generación.
+            - Estado inicial (not started): solo se permite el token '{'.
+        3. Se selecciona el token con mayor puntuación (argmax).
+        4. Se actualiza el contexto y se registra el token generado.
+        5. Se controla la profundidad de llaves (brace depth counter) para
+            detectar cuándo el objeto JSON está completo.
+
+        El bucle termina cuando todas las llaves abiertas han sido cerradas
+        (depth == 0 y started == True), o cuando se alcanza el límite de pasos.
+
+        Args:
+            full_tk: Lista de tokens que representa el contexto completo de entrada
+                    (instrucciones + funciones disponibles + query del usuario).
+            prompt_tk: Lista de tokens del prompt original del usuario.
+                    Reservado para uso en fases posteriores del constrained decoding.
+
+        Returns:
+            Lista de enteros con los IDs de los tokens generados por el modelo,
+            sin incluir el contexto de entrada (full_tk).
         """
         current_ids: List[int] = list(full_tk)
         generated_ids: List[int] = []
         generated_text: str = ""
         max_steps: int = 200
-        depth: int = 0          # contador de llaves abiertas
-        started: bool = False   # hemos visto al menos una '{'
+        depth: int = 0
+        started: bool = False
+        NEG_INF = float('-inf')
 
         for step in range(max_steps):
             logits = self.get_logits(current_ids)
+
+            if not started:
+                id_permitido = self.tk_str_to_id.get('{') or self.tk_str_to_id.get('Ġ{')
+                
+                if id_permitido is not None:
+                    mask = [NEG_INF] * len(logits)
+                    mask[id_permitido] = 0.0
+                    logits = mask
 
             top_id = max(range(len(logits)), key=lambda i: logits[i])
 
@@ -117,7 +145,6 @@ class LLMWrapper():
             token_str = self.id_to_tk_str.get(top_id, "<UNK>")
             generated_text += token_str
 
-            # actualizar contador de llaves
             for char in token_str:
                 if char == '{':
                     depth += 1
@@ -125,46 +152,47 @@ class LLMWrapper():
                 elif char == '}':
                     depth -= 1
 
-            # si hemos empezado y todas las llaves están cerradas -> JSON completo
             if started and depth == 0:
                 break
-        else:
-            print("[WARN] Límite de pasos alcanzado sin JSON completo.")
-
+        
         return generated_ids
 
 
     # def _generar_ids(self, full_tk: List[int], prompt_tk: List[int]) -> List[int]:
-    #     current_ids = list(full_tk)
-    #     generated_ids = []
-    #     NEG_INF = float('-inf')
+    #     """
+    #     Bucle token a token sin restricciones (por ahora).
+    #     Devuelve solo los ids generados, sin el contexto inicial.
+    #     """
+    #     current_ids: List[int] = list(full_tk)
+    #     generated_ids: List[int] = []
+    #     generated_text: str = ""
+    #     max_steps: int = 200
+    #     depth: int = 0          # contador de llaves abiertas
+    #     started: bool = False   # hemos visto al menos una '{'
 
-    #     # --- ESTADO 0: Obligar a empezar con '{' ---
-    #     # 1. Pedimos las puntuaciones (logits) a la IA basándonos en el contexto
-    #     logits = self.get_logits(current_ids)
-        
-    #     # 2. Buscamos el ID de la llave en nuestro vocabulario
-    #     id_llave = self.tk_str_to_id.get('{') or self.tk_str_to_id.get('Ġ{')
+    #     for step in range(max_steps):
+    #         logits = self.get_logits(current_ids)
 
-    #     # 3. MÁSCARA: Creamos una nueva lista de logits donde TODO es -inf
-    #     # excepto la posición de nuestra llave, que mantiene su puntuación original.
-    #     logits_restringidos = [NEG_INF] * len(logits)
-    #     if id_llave is not None:
-    #         logits_restringidos[id_llave] = logits[id_llave]
+    #         top_id = max(range(len(logits)), key=lambda i: logits[i])
+
+    #         current_ids.append(top_id)
+    #         generated_ids.append(top_id)
+
+    #         token_str = self.id_to_tk_str.get(top_id, "<UNK>")
+    #         generated_text += token_str
+
+    #         # actualizar contador de llaves
+    #         for char in token_str:
+    #             if char == '{':
+    #                 depth += 1
+    #                 started = True
+    #             elif char == '}':
+    #                 depth -= 1
+
+    #         # si hemos empezado y todas las llaves están cerradas -> JSON completo
+    #         if started and depth == 0:
+    #             break
     #     else:
-    #         # Si por algún motivo no existe la llave en el vocabulario (raro)
-    #         print("[ERROR] No se encontró el token de llave '{'")
-    #         sys.exit(1)
-
-    #     # 4. Ahora la IA elige el máximo de la lista restringida
-    #     # argmax: busca el índice del valor más alto
-    #     token_elegido = max(range(len(logits_restringidos)), key=lambda i: logits_restringidos[i])
-
-    #     # 5. Guardamos lo que la IA "ha elegido" bajo nuestra presión
-    #     current_ids.append(token_elegido)
-    #     generated_ids.append(token_elegido)
-        
-    #     # Imprimimos para ver que funciona
-    #     print(f"[DEBUG] Generado primer token: {self.decode_ids([token_elegido])}")
+    #         print("[WARN] Límite de pasos alcanzado sin JSON completo.")
 
     #     return generated_ids
