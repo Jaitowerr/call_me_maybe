@@ -65,6 +65,7 @@ class LLMWrapper():
         generated_ids: List[int] = self._generar_ids(full_tk, prompt_tk)
 
         texto: str = self._ids_a_texto(generated_ids)
+        # result: str = self._ids_a_texto(generated_ids)
 
         result: Dict = self._texto_a_dict(texto)
 
@@ -72,10 +73,15 @@ class LLMWrapper():
 
 
     def _ids_a_texto(self, ids: List[int]) -> str:
-        """
-        Convierte List[int] -> str usando decode_ids del wrapper.
-        """
-        return self.decode_ids(ids)
+        texto = self.decode_ids(ids)
+        # Extraer solo lo que hay entre <json> y </json>
+        if "<json>" in texto and "</json>" in texto:
+            inicio = texto.index("<json>") + len("<json>")
+            fin = texto.index("</json>")
+            return texto[inicio:fin].strip()
+        # Si no hay etiquetas, devolver tal cual (fallback)
+        return texto.strip()
+
 
     def _texto_a_dict(self, texto: str) -> Dict:
         """
@@ -108,7 +114,7 @@ class LLMWrapper():
             current_ids.append(top_id)
             generated_ids.append(top_id)
 
-            token_str = self.id_to_tk_str.get(top_id, "<​UNK>")
+            token_str = self.id_to_tk_str.get(top_id, "<UNK>")
             generated_text += token_str
 
             # actualizar contador de llaves

@@ -79,7 +79,8 @@ if __name__ == "__main__":
     for full_tk, prompt in zip(all_full_tk, list_prompt):
         answer = ai_model.respuesta_ia(full_tk, prompt.get_prompt_tk())
         result.append(answer)
-        break
+        print('--------')
+        # break
     rutas.write_output_json(result)
 
 
