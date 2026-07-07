@@ -5,6 +5,73 @@ A CONTROLAR!!!!!
 
 
 
+LO QUE FALTA
+
+
+
+jaitowerr@Jaitowerr:~/42madrid/milestone_3/call_me_maybe$ tree
+.
+├── Makefile
+├── README.md
+├── data
+│   ├── input
+│   │   ├── function_calling_tests.json
+│   │   └── functions_definition.json
+│   └── output
+│       └── function_calling_results.json
+├── llm_sdk
+│   ├── llm_sdk
+│   │   └── __init__.py
+│   ├── pyproject.toml
+│   └── uv.lock
+├── pyproject.toml
+├── set-local.sh
+├── src
+│   ├── __init__.py
+│   ├── __main__.py
+│   ├── llm
+│   │   ├── __init__.py
+│   │   ├── prompt_builder.py
+│   │   └── wrapper.py
+│   ├── object
+│   │   ├── Func_def.py
+│   │   ├── Parse.py
+│   │   ├── Prompt_io.py
+│   │   └── __init__.py
+│   └── src.zip
+└── uv.lock
+
+9 directories, 24 files
+jaitowerr@Jaitowerr:~/42madrid/milestone_3/call_me_maybe$
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

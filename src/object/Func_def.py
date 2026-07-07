@@ -122,3 +122,9 @@ class Func_def(BaseModel):
         if self.signature_tk is None:
             raise ValueError(f"La firma de {self.name} no está tokenizada.")
         return self.signature_tk
+    
+    def get_name_tk(self, encoder_func) -> List[int]:
+        """
+        Tokeniza y devuelve el nombre de la función como lista de IDs.
+        """
+        return encoder_func(self.name)

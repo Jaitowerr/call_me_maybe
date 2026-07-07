@@ -85,5 +85,5 @@ class Config(BaseModel):
                 json.dump(result, file, indent=4, ensure_ascii=False)   #ensure_ascii conserva caracteres UTF-8 correctamente.
         except Exception as e:
             print(f"[ERROR] No se pudo escribir el fichero de salida: {e}")
-            sys.exist(1)
+            sys.exit(1)
     
