@@ -4,6 +4,7 @@ from pydantic import BaseModel
 import json
 import sys
 from src.object.Func_def import Func_def
+from src.object.debug import Debug
 
 
 class LLMWrapper():
@@ -14,13 +15,21 @@ class LLMWrapper():
         """
         Esta es la función que pasaremos como 'encoder_func'.
         Convierte texto -> Tensor [[1, 2, 3]] -> Lista de IDs [1, 2, 3].
+        Utiliza el SDK para el algoritmo BPE (complejidad O(N^2)), 
+        pero la validación de la arquitectura de decodificación restringida
+        se apoya exclusivamente en el vocabulario cargado en load_vocab().
         """
         tensor_ids = self.model.encode(text)  # [[1, 2, 3]]
         return tensor_ids.tolist()[0]  # [1, 2, 3]
 
     def decode_ids(self, ids: List[int]) -> str:
-        """Convierte lista de IDs -> texto."""
-        return self.model.decode(ids)
+        """
+        Convierte lista de IDs -> texto.
+        Decodificación manual usando el vocabulario cargado.
+        No depende del SDK.
+        """
+        text = "".join(self.id_to_tk_str.get(tid, "") for tid in ids)
+        return text.replace("Ġ", " ").replace("Ċ", "\n")
 
     def load_vocab(self) -> None:
         """
@@ -28,13 +37,15 @@ class LLMWrapper():
         id_to_tk_str y tk_str_to_id. Sale con sys.exit(1) si falla.
         """
         try:
+            dprint = Debug().dprint
             vocab_path = self.model.get_path_to_vocab_file()
-            print(f"[DEBUG] Leyendo vocabulario desde: {vocab_path}")
+            dprint(f"\n    [DEBUG] Leyendo vocabulario desde: {vocab_path}")
             with open(vocab_path, 'r', encoding='utf-8') as f:
                 raw = json.load(f)
 
-            print(f"[DEBUG] Tipo de raw: {type(raw)}")
-            print(f"[DEBUG] Ejemplo de contenido: {list(raw.items())[:3]}")
+            dprint(f"\n    [DEBUG] Tipo de raw: {type(raw)}")
+            dprint(
+                f"\n    [DEBUG] Ejemplo de contenido: {list(raw.items())[:3]}")
 
             if not isinstance(raw, dict):
                 raise TypeError("El vocabulario no es un diccionario")
@@ -96,139 +107,8 @@ class LLMWrapper():
             return json.loads(texto)
         except json.JSONDecodeError as e:
             print(f"[ERROR] El modelo no generó un JSON válido: {e}")
-            print(f"[DEBUG] Texto recibido: {repr(texto)}")
+            print(f"    [DEBUG] Texto recibido: {repr(texto)}")
             sys.exit(1)
-
-    # def _generar_ids(
-    #         self,
-    #         full_tk: List[int],
-    #         prompt_tk: List[int],
-    #         fn_names_tk: List[List[int]]) -> List[int]:
-    #     """
-    #     Genera una secuencia de tokens de respuesta mediante un bucle token a token
-    #     usando constrained decoding con una máquina de estados.
-
-    #     La máquina de estados controla qué tokens son válidos en cada momento:
-    #         - Estado 0 (INICIO):   Solo permite el token '{'.
-    #         - Estado 1 (PROMPT):   Fuerza la clave '"prompt": "' token a token,
-    #                                luego deja al modelo escribir el valor libremente.
-    #         - Estado 2 (FN_NAME):  Fuerza la clave '"fn_name": "' token a token,
-    #                                luego deja al modelo escribir el valor libremente.
-    #         - Estado 3 (ARGS):     Fuerza la clave '"args": ' token a token,
-    #                                luego deja al modelo escribir el valor libremente.
-    #         - Estado 4 (FIN):      El JSON está completo cuando brace_count == 0.
-
-    #     El bucle termina cuando todas las llaves abiertas han sido cerradas
-    #     (brace_count == 0 y estado == 4), o cuando se alcanza el límite de pasos.
-
-    #     Args:
-    #         full_tk: Lista de tokens que representa el contexto completo de entrada
-    #                 (instrucciones + funciones disponibles + query del usuario).
-    #         prompt_tk: Lista de tokens del prompt original del usuario.
-    #                 Reservado para uso en fases posteriores del constrained decoding.
-    #         fn_names_tk: Lista de listas de IDs, uno por cada función disponible.
-    #                 Usado para restringir los tokens válidos en el campo fn_name.
-
-    #     Returns:
-    #         Lista de enteros con los IDs de los tokens generados por el modelo,
-    #         sin incluir el contexto de entrada (full_tk).
-    #     """
-    #     current_ids: List[int] = list(full_tk)
-    #     generated_ids: List[int] = []
-    #     generated_text: str = ""
-    #     max_steps: int = max(200, len(full_tk))
-    #     brace_count: int = 0
-    #     NEG_INF = float('-inf')
-    #     # 0: INICIO  1: PROMPT  2: FN_NAME  3: ARGS  4: FIN
-    #     estado: int = 0
-
-    #     tk_key_prompt = self.encode_text('\n  "prompt": "')
-    #     tk_prompt_idx: int = 0
-    #     tk_key_fn = self.encode_text(',\n  "fn_name": "')
-    #     tk_fn_idx: int = 0
-    #     tk_key_args = self.encode_text(',\n  "args": ')
-    #     tk_args_idx: int = 0
-
-    #     for step in range(max_steps):
-
-    #         # --- ACTUALIZAR ESTADO ---
-    #         if estado == 0 and "{" in generated_text:
-    #             estado = 1
-    #         if estado == 1 and '"prompt":' in generated_text:
-    #             estado = 2
-    #         if estado == 2 and '"fn_name":' in generated_text:
-    #             estado = 3
-    #         if estado == 3 and '"args":' in generated_text:
-    #             estado = 4
-
-    #         # --- PEDIR LOGITS ---
-    #         logits = self.get_logits(current_ids)
-
-    #         # --- CONSTRAINED DECODING SEGÚN ESTADO ---
-    #         if estado == 0:
-    #             # Solo permitimos '{'
-    #             id_permitido = self.tk_str_to_id.get('{')
-    #             if id_permitido is None:
-    #                 id_permitido = self.tk_str_to_id.get('Ġ{')
-    #             if id_permitido is not None:
-    #                 mask = [NEG_INF] * len(logits)
-    #                 mask[id_permitido] = 0.0
-    #                 logits = mask
-
-    #         elif estado == 1:
-    #             # Forzamos '"prompt": "' token a token
-    #             if tk_prompt_idx < len(tk_key_prompt):
-    #                 mask = [NEG_INF] * len(logits)
-    #                 mask[tk_key_prompt[tk_prompt_idx]] = 0.0
-    #                 logits = mask
-    #                 tk_prompt_idx += 1
-
-    #         elif estado == 2:
-    #             # Forzamos ',"fn_name": "' token a token
-    #             if tk_fn_idx < len(tk_key_fn):
-    #                 mask = [NEG_INF] * len(logits)
-    #                 mask[tk_key_fn[tk_fn_idx]] = 0.0
-    #                 logits = mask
-    #                 tk_fn_idx += 1
-
-    #         elif estado == 3:
-    #             # Forzamos ',"args": ' token a token
-    #             if tk_args_idx < len(tk_key_args):
-    #                 mask = [NEG_INF] * len(logits)
-    #                 mask[tk_key_args[tk_args_idx]] = 0.0
-    #                 logits = mask
-    #                 tk_args_idx += 1
-
-    #         # --- ELEGIR TOKEN CON MAYOR PUNTUACIÓN ---
-    #         top_id = max(range(len(logits)), key=lambda i: logits[i])
-    #         current_ids.append(top_id)
-    #         generated_ids.append(top_id)
-
-    #         # --- DECODIFICAR Y ACUMULAR TEXTO ---
-    #         token_str = self.id_to_tk_str.get(top_id, "<​UNK>")
-    #         generated_text += token_str
-
-    #         # --- ACTUALIZAR CONTADOR DE LLAVES ---
-    #         for char in token_str:
-    #             if char == '{':
-    #                 brace_count += 1
-    #             elif char == '}':
-    #                 brace_count -= 1
-
-    #         # --- JSON COMPLETO CUANDO TODAS LAS LLAVES ESTÁN CERRADAS ---
-    #         if brace_count == 0 and len(generated_ids) > 0 and estado == 4:
-    #             break
-    #     else:
-    #         print("[WARN] Límite de pasos alcanzado sin JSON completo.")
-
-    #     return generated_ids
-
-
-
-
-
-
-
 
     def _generar_ids(
             self,
@@ -240,7 +120,7 @@ class LLMWrapper():
         de máscaras de logits para obligar al modelo a seguir un esquema JSON estricto.
 
         El método utiliza una máquina de estados para guiar la generación token a token:
-        
+
         Estados de la generación:
             0: Inicio del JSON. Fuerza la secuencia exacta '{"prompt": "'.
             1: Contenido del Prompt. Inyecta los tokens del prompt original (escapando 
@@ -266,29 +146,24 @@ class LLMWrapper():
         brace_count: int = 0
         started: bool = False
         NEG_INF = float('-inf')
+        dprint = Debug().dprint
 
         def get_id(s):
-            return self.tk_str_to_id.get(s)
+            return self.tk_str_to_id.get(s) or self.tk_str_to_id.get("Ġ" + s)
 
-        # ================================================================
-        # ESCAPAR COMILLAS DEL PROMPT PARA JSON VÁLIDO
-        # ================================================================
-        if hasattr(self, 'tokenizer') and hasattr(self.tokenizer, 'decode'):
-            raw_prompt = self.tokenizer.decode(prompt_tk, skip_special_tokens=True)
-            safe_prompt = raw_prompt.replace('"', '\\"')
-            prompt_tk = self.tokenizer.encode(safe_prompt, add_special_tokens=False)
-        else:
-            # Fallback manual (menos preciso, pero funciona)
-            raw = "".join(self.id_to_tk_str.get(t, "") for t in prompt_tk)
-            raw = raw.replace("Ġ", " ")
-            safe = raw.replace('"', '\\"')
-            prompt_tk = self.encode_text(safe)
+
+        raw_prompt = "".join(self.id_to_tk_str.get(t, "")
+                             for t in prompt_tk).replace("Ġ", " ").replace("Ċ", "\n")
+
+        safe_prompt = raw_prompt.replace('"', '\\"')
+
+        prompt_tk = self.encode_text(safe_prompt)
 
         # --- Secuencias fijas ---
-        header_tk       = self.encode_text('{"prompt": "')
+        header_tk = self.encode_text('{"prompt": "')
         prompt_close_tk = self.encode_text('", ')
-        fn_key_tk       = self.encode_text('"fn_name": "')
-        args_key_tk     = self.encode_text('"args": {')
+        fn_key_tk = self.encode_text('"fn_name": "')
+        args_key_tk = self.encode_text('"args": {')
 
         # --- Estado ---
         estado: int = 0
@@ -398,15 +273,27 @@ class LLMWrapper():
 
             # ---------- ELEGIR TOKEN ----------
             top_id = max(range(len(logits)), key=lambda i: logits[i])
+            
+            # INTERCEPTACIÓN: último argumento numérico no puede llevar coma
+            if (estado == 5 and arg_state == "value" and func_detectada 
+                    and arg_idx == len(arg_keys) - 1):
+                current_key = arg_keys[arg_idx]
+                if func_detectada.parameters[current_key]['type'] == 'number':
+                    token_str_check = self.id_to_tk_str.get(top_id, "")
+                    if ',' in token_str_check:
+                        forced_id = get_id('}')
+                        if forced_id is not None:
+                            top_id = forced_id
+            
             current_ids.append(top_id)
             generated_ids.append(top_id)
             token_str = self.id_to_tk_str.get(top_id, "<​UNK>")
             generated_text += token_str
 
-            print(f"[DEBUG] step={step:3d} estado={estado:5.1f} idx={idx} "
-                  f"arg_state={arg_state:4s} arg_idx={arg_idx}/{len(arg_keys)} "
-                  f"tok={repr(token_str):16s} brace={brace_count} "
-                  f"buf={repr(fn_buffer):30s}")
+            dprint(f"    [DEBUG] step={step:3d} estado={estado} idx={idx} "
+                   f"arg_state={arg_state:4s} arg_idx={arg_idx}/{len(arg_keys)} "
+                   f"tok={repr(token_str):16s} brace={brace_count} "
+                   f"buf={repr(fn_buffer):30s}")
 
             # ---------- CONTADOR DE LLAVES ----------
             for char in token_str:
@@ -416,7 +303,7 @@ class LLMWrapper():
                 elif char == '}':
                     brace_count -= 1
             if started and brace_count == 0:
-                print(f"[DEBUG] JSON completo en step {step}")
+                dprint(f"    [DEBUG] JSON completo en step {step}")
                 break
 
             # ---------- TRANSICIONES ----------
@@ -440,13 +327,14 @@ class LLMWrapper():
                     partes = token_str.split('"', 1)
                     fn_buffer += partes[0]
                     clean = fn_buffer.strip()
-                    print(f"[DEBUG] Nombre detectado: {repr(clean)}")
+                    dprint(f"    [DEBUG] Nombre detectado: {repr(clean)}")
                     if func_defs:
                         for fd in func_defs:
                             if fd.name == clean:
                                 func_detectada = fd
                                 arg_keys = list(fd.parameters.keys())
-                                print(f"[DEBUG] Funcion OK: {fd.name} args={arg_keys}")
+                                dprint(
+                                    f"    [DEBUG] Funcion OK: {fd.name} args={arg_keys}")
                                 break
                     resto = partes[1] if len(partes) > 1 else ""
                     if resto.startswith(', ') or resto.startswith(',Ġ'):
@@ -496,8 +384,12 @@ class LLMWrapper():
                                         arg_state, arg_sub_idx = "sep", 0
                         elif current_type == 'number':
                             if ',' in token_str:
-                                arg_idx += 1
-                                arg_state, arg_sub_idx = "key", 0
+                                if arg_idx < len(arg_keys) - 1:
+                                    arg_idx += 1
+                                    arg_state, arg_sub_idx = "key", 0
+                                else:
+                                    # Último argumento: ignorar coma, forzar cierre
+                                    arg_idx = len(arg_keys)
                             elif '}' in token_str:
                                 arg_idx = len(arg_keys)
 
@@ -511,12 +403,6 @@ class LLMWrapper():
                             arg_idx = len(arg_keys)
 
         return generated_ids
-
-
-
-
-
-
 
     # def _generar_ids(
     #         self,

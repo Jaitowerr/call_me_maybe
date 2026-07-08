@@ -1,9 +1,8 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, Callable, List
 from pydantic import BaseModel
 import sys
 import json
 from pathlib import Path
-from typing import List
 
 class Func_def(BaseModel):
     """
@@ -15,7 +14,7 @@ class Func_def(BaseModel):
     description: str
     parameters: Dict[str, Dict[str, str]] 
     returns: Dict[str, str]
-    signature: str = None
+    signature: Optional[str] = None
     signature_tk : Optional[List[int]] = None	# tokenización del texto del prompt.
 
     @classmethod
@@ -98,7 +97,7 @@ class Func_def(BaseModel):
         )    
         # print(self.signature)   # eliminar despues
 
-    def tokenize_signature(self, encoder_func):
+    def tokenize_signature(self, encoder_func: Callable[[str], List[int]]) -> None:
         """
         Tokeniza la firma usando la función dada.
         Valida que el resultado sea una lista de enteros.
@@ -123,7 +122,7 @@ class Func_def(BaseModel):
             raise ValueError(f"La firma de {self.name} no está tokenizada.")
         return self.signature_tk
     
-    def get_name_tk(self, encoder_func) -> List[int]:
+    def get_name_tk(self, encoder_func: Callable[[str], List[int]]) -> List[int]:
         """
         Tokeniza y devuelve el nombre de la función como lista de IDs.
         """

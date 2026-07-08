@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Any, Optional, Union, List
+from typing import Dict, Any, Optional, Union, List, Callable
 from pydantic import BaseModel
 import sys
 import json
@@ -49,6 +49,9 @@ class Prompt_io(BaseModel):
                 if not isinstance(value, str):
                     raise ValueError(
                         f"Valor en posición {idx} debe ser un string.")
+                if not value.strip():
+                    print(f"\033[1;33m[INFO]\033[0m   Prompt vacío en posición {idx}, ignorado.")
+                    continue
 
                 results.append(Prompt_io(prompt=value))
 
@@ -65,7 +68,7 @@ class Prompt_io(BaseModel):
             sys.exit(1)
 
 
-    def tokenize(self, encoder_func) -> List[int]:
+    def tokenize(self, encoder_func: Callable[[str], List[int]]) -> None:
         """
         Tokeniza el prompt usando la función dada (puede ser del SDK o mia).
         Valida que el resultado sea una lista de enteros.

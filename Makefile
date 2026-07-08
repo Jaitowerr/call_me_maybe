@@ -1,7 +1,7 @@
 # Makefile
 
-.PHONY: install run debug clean lint
- 
+.PHONY: install run debug clean lint lint-strict
+
 install:
 	@uv sync
 
@@ -48,7 +48,13 @@ clean:
 lint:
 	@uv run flake8 . --exclude=.venv,data,llm_sdk,__pycache__
 	@uv run mypy . --exclude "(.venv|data|llm_sdk)" --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
-# 	@ $(MAKE) clean
+	@ $(MAKE) clean
+
+lint-strict:
+	@uv run flake8 .  --exclude=.venv,data,llm_sdk,__pycache__
+	@uv run mypy . --strict --exclude "(.venv|data|llm_sdk)"
+	@ $(MAKE) clean
+
 
 %:
 	@:

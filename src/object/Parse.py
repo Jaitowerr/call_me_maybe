@@ -3,6 +3,8 @@ import sys
 from typing import List, Any, Dict
 from pydantic import BaseModel, Field, field_validator, model_validator, ValidationError
 import json
+from src.object.debug import Debug
+
 
 class Config(BaseModel):
     input_path: str = Field(default="data/input/function_calling_tests.json")
@@ -25,18 +27,31 @@ class Config(BaseModel):
     def parse_arguments(cls, args: List[str]) -> "Config":
         try:
             parsed_data = {}
+            seen_flags = set()
             i = 0
             while i < len(args):
                 if args[i] == "--input":
+                    if "--input" in seen_flags:
+                        raise ValueError("La bandera --input está duplicada.")
                     if i + 1 >= len(args) or args[i+1].startswith("--"):
                         raise ValueError("La bandera --input requiere que especifiques una ruta de archivo.")
                     parsed_data["input_path"] = args[i+1]
+                    seen_flags.add("--input")
                     i += 2
                 elif args[i] == "--output":
+                    if "--output" in seen_flags:
+                        raise ValueError("La bandera --input está duplicada.")
                     if i + 1 >= len(args) or args[i+1].startswith("--"):
                         raise ValueError("La bandera --output requiere que especifiques una ruta de archivo.")
                     parsed_data["output_path"] = args[i+1]
+                    seen_flags.add("--output")
                     i += 2
+                elif args[i] in ('--d' , '--debug'):
+                    if "debug" in seen_flags:
+                        raise ValueError("La bandera --debug está duplicada.")
+                    Debug().enable()
+                    seen_flags.add("debug")
+                    i += 1
                 else:
                     raise ValueError(
                         f"Argumento no reconocido: '{args[i]}'.\n"
