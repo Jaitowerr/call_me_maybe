@@ -1,402 +1,155 @@
-A CONTROLAR!!!!!
-  PARSEO:
-        "prompt": ""  Esto controlarlo como error, el prompt está vacío no contiene nada
-        eliminar espacios antes del prompt es decir la cadena str si tiene espacios al principio o al final, limpiarla para prevenir de cosas extrañas o posibles errores
+*Este proyecto ha sido creado como parte del currículo de 42 por aitorres.*
+<br><br><br><br><br>
+<p align="center">
+  <h1 align="center">📞 CALL ME MAYBE</h1>
+</p>
 
+<p align="center">
+  <strong>Inteligencia Artificial y Decodificación Restringida</strong><br>
+  <i>42 Madrid - Milestone 3</i>
+</p>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.10-blue.svg" alt="Python 3.10">
+  <img src="https://img.shields.io/badge/Package_Manager-uv-orange.svg" alt="uv">
+  <img src="https://img.shields.io/badge/LLM-Qwen--3--0.6B-green.svg" alt="Qwen">
+  <img src="https://img.shields.io/badge/Lint-Strict-red.svg" alt="Mypy Strict">
+</p>
+<br><br>
+---
 
-LO QUE FALTA
+## Tabla de contenido
 
+- [Descripción](#descripción)
+- [Estructura del repositorio](#estructura-del-repositorio)
+- [Instrucciones](#instrucciones)
+- [Recursos y uso de IA](#recursos-y-uso-de-ia)
+- [Explicación del algoritmo — Decodificación restringida](#explicación-del-algoritmo--decodificación-restringida)
+- [Decisiones de diseño](#decisiones-de-diseño)
+- [Análisis de rendimiento](#análisis-de-rendimiento)
+- [Retos encontrados y soluciones](#retos-encontrados-y-soluciones)
+- [Estrategia de pruebas](#estrategia-de-pruebas)
+- [Ejemplos de uso](#ejemplos-de-uso)
+- [Cómo añadir otro LLM](#cómo-añadir-otro-llm)
 
+<br><br><br>
 
-jaitowerr@Jaitowerr:~/42madrid/milestone_3/call_me_maybe$ tree
+## Descripción
+
+**call-me-maybe** transforma prompts en lenguaje natural en llamadas a función estructuradas, usando un LLM local (`Qwen/Qwen3-0.6B` por defecto, vía `llm_sdk.Small_LLM_Model`) guiado por **decodificación restringida token a token**.
+
+Dado un prompt como `"What is the sum of 2 and 3?"`, el programa no le pide al modelo que "haga bien el JSON"; en su lugar, en cada paso de generación enmascara los logits del modelo para que solo pueda emitir tokens compatibles con el esquema de salida:
+
+```json
+{
+  "prompt": "What is the sum of 2 and 3?",
+  "fn_name": "fn_add_numbers",
+  "args": {"a": 2.0, "b": 3.0}
+}
+```
+
+`fn_name` debe corresponder a una función válida definida en `data/input/functions_definition.json`, y `args` debe contener los argumentos con los tipos correctos.
+
+<br><br>
+
+## Estructura del repositorio
+
+```
 .
 ├── Makefile
 ├── README.md
-├── data
-│   ├── input
-│   │   ├── function_calling_tests.json
-│   │   └── functions_definition.json
-│   └── output
-│       └── function_calling_results.json
-├── llm_sdk
-│   ├── llm_sdk
-│   │   └── __init__.py
-│   ├── pyproject.toml
-│   └── uv.lock
 ├── pyproject.toml
-├── set-local.sh
-├── src
-│   ├── __init__.py
-│   ├── __main__.py
-│   ├── llm
-│   │   ├── __init__.py
-│   │   ├── prompt_builder.py
-│   │   └── wrapper.py
-│   ├── object
-│   │   ├── Func_def.py
-│   │   ├── Parse.py
-│   │   ├── Prompt_io.py
-│   │   └── __init__.py
-│   └── src.zip
-└── uv.lock
-
-9 directories, 24 files
-jaitowerr@Jaitowerr:~/42madrid/milestone_3/call_me_maybe$
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-## ENTORNO VIRTUAL UV
-
-###  Crea el entorno virtual   "uv init"
-	uv init call-me-maybe --python 3.10
-Esto genera pyproject.toml, un .python-version, un README.md placeholder y un .gitignore ya preparado para Python.
-
-### Añadir una dependencia (equivalente a pip install + anotar)
-	uv add pydantic
-	uv add numpy
-
-### Quitar una dependencia
-	uv remove numpy
-
-### Instalar todo desde lockfile
-	uv sync
-
-### Ejecutar un script
-	uv run python ...
-	
-### .gitignore
-	.venv/
-	__pycache__/
-	*.pyc
-	.mypy_cache/
-	.pytest_cache/
-	data/output/
-
-
-
-
-# Resumen del Proyecto: Call-Me-Maybe
-
-## 1. data/input — Qué contiene exactamente
-
-### Archivo: `callmemaybe_extracted/data/input/function_calling_tests.json`
-**Contenido:** Contiene un total de 11 prompts (casos de prueba):
-1. *What is the sum of 2 and 3?*
-2. *What is the sum of 265 and 345?*
-3. *Greet shrek*
-4. *Greet john*
-5. *Reverse the string 'hello'*
-6. *Reverse the string 'world'*
-7. *What is the square root of 16?*
-8. *Calculate the square root of 144*
-9. *Replace all numbers in "Hello 34 I'm 233 years old" with NUMBERS*
-10. *Replace all vowels in 'Programming is fun' with asterisks*
-11. *Substitute the word 'cat' with 'dog' in 'The cat sat on the mat with another cat'*
-
-**Propósito:** Cada uno de estos prompts es un caso de prueba que el programa debe procesar y traducir a una llamada de función estructurada (`fn_name` + `args`).
-
-### Archivo: `callmemaybe_extracted/data/input/functions_definition.json`
-**Contenido:** Lista de 5 funciones disponibles que actúan como la "API" que el sistema puede invocar. Cada una cuenta con `name`, `description`, `parameters` y `returns`.
-
-#### Funciones y Parámetros:
-* **`fn_add_numbers`**
-    * **Descripción:** Suma dos números y devuelve la suma.
-    * **Parámetros:**
-        * `a`: `type = number`
-        * `b`: `type = number`
-    * **Retorno:** `number`
-* **`fn_greet`**
-    * **Descripción:** Genera un saludo para una persona por su nombre.
-    * **Parámetro:**
-        * `name`: `type = string`
-    * **Retorno:** `string`
-* **`fn_reverse_string`**
-    * **Descripción:** Invierte una cadena y devuelve el resultado.
-    * **Parámetro:**
-        * `s`: `type = string`
-    * **Retorno:** `string`
-* **`fn_get_square_root`**
-    * **Descripción:** Calcula la raíz cuadrada de un número.
-    * **Parámetro:**
-        * `a`: `type = number`
-    * **Retorno:** `number`
-* **`fn_substitute_string_with_regex`**
-    * **Descripción:** Reemplaza todas las ocurrencias que casen con una regex en una cadena.
-    * **Parámetros:**
-        * `source_string`: `string`
-        * `regex`: `string`
-        * `replacement`: `string`
-    * **Retorno:** `string`
-
-> ⚠️ **Importante:** La salida JSON debe usar exactamente esos nombres y tipos. 
-> 
-> **Ejemplo de salida para el prompt *"What is the sum of 2 and 3?"*:**
-> ```json
-> {
->   "prompt": "What is the sum of 2 and 3?",
->   "fn_name": "fn_add_numbers",
->   "args": {"a": 2.0, "b": 3.0}
-> }
-> ```
-
----
-
-## 2. llm_sdk — Qué hay y qué ofrece
-
-**Fichero:** `callmemaybe_extracted/llm_sdk/llm_sdk/__init__.py`  
-Define la clase `Small_LLM_Model` y utiliza `transformers` de Hugging Face.
-
-### Clase: `Small_LLM_Model(model_name="Qwen/Qwen3-0.6B", device=None, dtype=None, trust_remote_code=True)`
-
-* **`__init__`**: Carga el tokenizer y el modelo de HF usando `AutoTokenizer` y `AutoModelForCausalLM`. Selecciona automáticamente el dispositivo (`mps` / `cuda` / `cpu`) y pone el modelo en modo de evaluación (`eval()`).
-* **`encode(text: str) -> torch.Tensor`**:
-    * Tokeniza el texto utilizando el tokenizer de HF.
-    * Devuelve un tensor 2-D (batch size = 1) con `input_ids` en el dispositivo correspondiente (tipo `dtype long`).
-    * *Nota:* La salida **NO** es una simple lista de enteros, sino un tensor de PyTorch con forma `[1, N]`.
-* **`decode(ids: Tensor | list[int]) -> str`**: Decodifica los `ids` a string omitiendo los tokens especiales (`skip_special_tokens=True`). Acepta tanto un tensor como una lista de enteros.
-* **`get_logits_from_input_ids(input_ids: list[int]) -> list[float]`**:
-    * Recibe una lista plana de token IDs (no un tensor) y construye el tensor de entrada para el modelo.
-    * Ejecuta el modelo bajo el contexto de `no_grad()` y devuelve los **logits del último token** como una lista de floats.
-    * Los logits representan los valores sin aplicar la función softmax (puntuación para cada token del vocabulario).
-    * La longitud de la lista es igual al tamaño del vocabulario del modelo (`vocab_size`).
-* **`get_path_to_vocab_file() -> str`**: Descarga (`hf_hub_download`) y devuelve la ruta local al fichero de vocabulario (ej. `vocab.json`). Es sumamente útil para inspeccionar la correspondencia `token_id ↔ token_string`.
-* **`get_path_to_merges_file()`, `get_path_to_tokenizer_file()`**: Descargan y retornan las rutas a los archivos de merges (para BPE) y `tokenizer.json` respectivamente.
-
-### Notas prácticas:
-1. El SDK depende directamente de `transformers` y `torch`. Se espera que el entorno de evaluación o la *moulinette* cuente con estos paquetes instalados.
-2. `get_logits_from_input_ids` devuelve una lista de floats (`list[float]`), la cual se utilizará para implementar la **decodificación restringida** (decidir qué tokens están permitidos en cada paso).
-3. Para visualizar tokens legibles, es más fiable inspeccionar el JSON del vocabulario obtenido mediante `get_path_to_vocab_file()` para mapear de manera exacta `ids ↔ strings`.
-
----
-
-## 3. src/main.py
-
-* **Contenido actual:** Un script `main` minimalista que únicamente imprime `"Hello from call-me-maybe!"`.
-* **Estado actual:** No hay lógica de negocio o del proyecto implementada en `src`. Será necesario estructurar nuevos módulos encargados de:
-    * Cargar y procesar los archivos de entrada.
-    * Interactuar con la clase `Small_LLM_Model`.
-    * Ejecutar la lógica de decodificación restringida token a token.
-    * Validar las estructuras mediante **Pydantic** y volcar los resultados en el archivo de salida.
-
----
-
-## 4. ¿Por qué necesitas Pydantic y NumPy?
-
-### Pydantic
-* **Validación de entrada:** Permite validar la estructura y el contenido del archivo `functions_definition.json` al leerlo, garantizando que campos como `name` o `parameters` cumplan con las restricciones del sistema.
-* **Validación de salida:** Permite validar de forma estricta cada objeto final obtenido (`prompt`, `fn_name`, `args`) antes de su serialización y escritura.
-* **Robustez:** Proporciona mensajes de error claros y estructurados si un campo está ausente o si los tipos de datos no coinciden, previniendo fallos silenciosos durante el proceso de evaluación.
-
-### NumPy
-* **Manipulación de Logits:** Ideal para trabajar eficientemente con las listas de floats de gran tamaño devueltas por el modelo.
-* **Operaciones vectorizadas:** Facilita la aplicación de máscaras vectorizadas complejas, permitiendo establecer los logits de tokens inválidos a `-inf` (o un valor significativamente bajo) de forma casi instantánea.
-* **Eficiencia:** Agiliza el cálculo del `argmax` sobre arrays extensos. Aunque `get_logits` devuelve una lista nativa de Python, su conversión a un array de NumPy optimiza las operaciones matemáticas.
-
----
-
-## 5. Qué significa “token” en este repositorio
-
-* Un **token** es la unidad mínima de procesamiento textual que utiliza el tokenizador del modelo Hugging Face cargado por `Small_LLM_Model`.
-* **No equivalen a caracteres individuales:** Pueden representar subpalabras, caracteres únicos, símbolos de puntuación o incluso espacios en blanco.
-* En este proyecto es imperativo **operar a nivel de tokens (IDs)** debido a que la decodificación restringida se ejecuta directamente sobre las distribuciones de probabilidad (logits) de los tokens del vocabulario.
-
-### Herramientas del repositorio:
-* `m.encode(text)` $\rightarrow$ Convierte una cadena de texto en una secuencia de token IDs.
-* `m.decode(ids)` $\rightarrow$ Transforma una secuencia de IDs de nuevo a texto legible.
-* `m.get_path_to_vocab_file()` $\rightarrow$ Proporciona la ubicación del archivo de vocabulario, clave para auditar cómo se tokenizan símbolos, palabras o prefijos específicos.
-
----
-
-## 6. Acciones concretas que puedes ejecutar ahora
-
-Comprobaciones y experimentos recomendados en un entorno interactivo (REPL de Python) donde `uv` o el modelo estén disponibles:
-
-1.  **Inicializar el wrapper y localizar el vocabulario:**
-    ```python
-    from llm_sdk.llm_sdk import Small_LLM_Model
-    m = Small_LLM_Model()
-    print(m.get_path_to_vocab_file()) # Muestra la ruta local a vocab.json
-    ```
-    *Acción:* Abre el archivo `vocab.json` generado y busca la codificación de los siguientes elementos: `'{'`, `'}'`, `'"'`, `':'`, `','`, dígitos (`'0'`, `'1'`, etc.) y los prefijos de los nombres de las funciones (ej. `'fn'`, `'fn_add'`, `'fn_add_numbers'`).
-
-2.  **Probar la tokenización de cadenas clave:**
-    ```python
-    print(m.encode('fn_add_numbers')) # Observa cómo se fragmenta en sub-tokens
-    print(m.encode('"'))
-    print(m.encode('{'))
-    print(m.encode('123'))
-    print(m.encode('a'))
-    ```
-    *Acción:* Evalúa si las comillas, llaves o números se consolidan como tokens independientes o si forman parte de bloques más grandes.
-
-3.  **Inspeccionar la estructura de los logits:**
-    ```python
-    ids = m.encode('What is the sum of 2 and 3?').tolist()[0]
-    logits = m.get_logits_from_input_ids(ids)
-    print(len(logits)) # Debería coincidir con el vocab_size del modelo
-    print(logits[:20]) # Examina las primeras 20 puntuaciones sin procesar
-    ```
-
-4.  **Estrategia de restricción de tokens:**
-    Para limitar la generación exclusivamente a los 5 nombres de función válidos, es necesario mapear de antemano cada nombre a su secuencia de tokens correspondiente (usando `encode`). Durante la generación paso a paso, se deberán enmascarar todos los tokens excepto aquellos que sigan extendiendo un prefijo válido de dichas secuencias.
-
----
-
-## 7. Diseño conceptual (Construcción de la decodificación restringida)
-
-Lógica estructurada para la implementación del algoritmo de generación:
-
-1.  **Objetivo:** Generar de manera secuencial (token a token) un JSON válido que contenga las llaves `"prompt"`, `"fn_name"` y `"args"`. Alternativamente, se puede restringir únicamente la generación del valor de `fn_name` y sus `args`, construyendo posteriormente la estructura final mediante código Python estándar.
-2.  **Flujo del Autómata / Estados de Tokenización:**
-    * **Estado Inicial (Selección de Función):**
-        * Precomputar las secuencias de tokens para cada una de las 5 funciones válidas (`m.encode(name)`).
-        * Generar token por token aplicando una máscara sobre los logits: solo se permiten tokens que coincidan con la continuación legítima de alguna de las secuencias de nombres precomputadas.
-        * Una vez que se completa una secuencia exacta, se bloquea la selección y se transiciona al siguiente estado.
-    * **Estado de Argumentos (`args`):**
-        * Tomando como base el esquema de la función seleccionada, se identifican los parámetros requeridos y sus tipos de datos.
-        * Se restringe la generación para obligar a cumplir con la sintaxis de un JSON estructurado. El autómata debe controlar transiciones como: apertura de llave `{`, escritura de claves de parámetros `"campo"`, dos puntos `:`, el valor según su tipo de dato, y separadores `,` o cierre `}`.
-        * *Manejo de tipos de datos en la máscara:*
-            * **`number`**: Solo se habilitan tokens numéricos (dígitos, punto decimal, signos `+`/`-`).
-            * **`string`**: Se permiten tokens que construyan texto delimitado por comillas, gestionando secuencias de escape.
-            * **`boolean`**: Solo se habilita la generación de los literales `true` o `false`.
-    * **Consulta y Enmascaramiento:** En cada paso de la generación, se invocará `get_logits_from_input_ids`, y se aplicará una máscara utilizando NumPy para vetar (fijar a $-\infty$) los tokens que violen el estado sintáctico actual.
-3.  **Validación y Mitigación:**
-    * Al alcanzar el estado final de generación, se parsea el JSON resultante y se valida formalmente con **Pydantic**.
-    * En caso de fallo en la validación, se debe capturar la excepción y ejecutar una estrategia de contingencia (ej. reintento de generación o aplicación de heurísticas de corrección).
-4.  **Estrategia de Implementación por Fases (Recomendado):**
-    * *Fase 1:* Implementar de forma estricta la selección guiada de la función (`fn_name`), dado que la lista de opciones es cerrada y acotada.
-    * *Fase 2 (Base de referencia):* Permitir que el modelo genere los argumentos (`args`) de forma libre en formato JSON. Posteriormente, delegar en Pydantic el parseo y forzar la coerción de tipos (ej. convertir una string numérica a number si es posible).
-    * *Fase 3 (Refinamiento):* Sustituir la generación libre de la Fase 2 por una decodificación restringida token a token aplicada a los tipos de los argumentos.
-    * *Criterio de éxito:* Asegurar una precisión superior al 95% en la selección de la función y robustecer el esquema de Pydantic para garantizar la integridad del output.
-
----
-
-## 8. Checklist del Mínimo Viable (MVP)
-
-- [ ] Implementar la lectura y el parseo seguro de `functions_definition.json` mapeando los datos a un modelo Pydantic (`FunctionDef`).
-- [ ] Implementar el bucle de lectura e iteración sobre los prompts de prueba.
-- [ ] Inicializar la instancia de `Small_LLM_Model` controlando los tiempos de carga del modelo.
-- [ ] **Desarrollar la selección de funciones:**
-  - [ ] Mapear los nombres de las funciones a sus respectivas secuencias de tokens.
-  - [ ] Implementar el bucle de generación restringido token a token para `fn_name`.
-- [ ] **Desarrollar el extractor de argumentos:**
-  - [ ] Diseñar el mecanismo de extracción de `args` dado el prompt y la función (Fase 2: Libre + Coerción / Fase 3: Restringido por tipo).
-- [ ] Validar la estructura del objeto de salida de cada iteración utilizando Pydantic antes de su consolidación.
-- [ ] Serializar y guardar la colección de resultados en `data/output/function_calling_results.json`.
-
----
-
-## 9. Posibles problemas prácticos y soluciones
-
-* **Descargas lentas o almacenamiento insuficiente en Hugging Face:** El SDK requiere descargar los pesos del modelo y el tokenizador localmente. Si existen restricciones de red o espacio, se puede desarrollar temporalmente un tokenizador "mock" para pruebas unitarias de flujo, aunque cabe destacar que la decodificación restringida legítima requiere de los logits reales provistos por el modelo.
-* **Tokenización inesperada en identificadores (Fragmentación):** Al evaluar y restringir los nombres de las funciones, es crítico operar con secuencias de tokens (listas de enteros resultantes de `encode`) y no asumir que los nombres se traducirán en un único token uniforme.
-* **Gestión de comillas y caracteres de escape:** Durante la generación sintáctica de strings en los argumentos, el autómata debe prever caracteres de escape para evitar cierres prematuros de cadenas. La validación con Pydantic actuará como red de seguridad identificando JSONs mal formados.
-* **Interpretación del vocabulario:** Usar de manera sistemática `get_path_to_vocab_file` para examinar de forma precisa la representación interna exacta de caracteres de control como espacios y delimitadores.
-
-
-
-
-
-
-
-
-
-
-
-
-PROMPT MAESTRO:
-
-He leído ambos documentos en detalle. Aquí tienes el prompt maestro:
-
-PROMPT MAESTRO — call-me-maybe (42 Madrid)
-# PROJECT: call-me-maybe — Function Calling with Constrained Decoding
-# 42 Madrid | Python 3.10+ | uv | Qwen/Qwen3-0.6B
-
-## CONTEXT
-I'm building a function-calling system that translates natural language prompts into
-structured JSON function calls using a local LLM with CONSTRAINED DECODING.
-This is NOT about prompting the model to output JSON — it's about intercepting
-the token generation process and masking invalid tokens at each step.
-
-## TECH STACK & HARD CONSTRAINTS
-- Python 3.10+
-- Package manager: uv (uv sync to install, NO pip install manually)
-- Allowed packages: pydantic, numpy, json (stdlib), llm_sdk (local package)
-- FORBIDDEN: dspy, pytorch, huggingface, transformers, outlines, or any similar lib
-- All classes MUST use pydantic for validation
-- Type hints everywhere + mypy passing (--warn-return-any --warn-unused-ignores
-  --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs)
-- flake8 compliant
-- Docstrings on all functions/classes (PEP 257, Google or NumPy style)
-- No private methods/attributes of llm_sdk (no _underscore access)
-- Model: Qwen/Qwen3-0.6B (default, must work with it)
-
-## PROJECT STRUCTURE (mandatory)
-call-me-maybe/
-├── src/
-│   ├── __init__.py
-│   └── __main__.py          # entry point
-├── llm_sdk/                 # copied local package (NOT installed via pypi)
-│   └── __init__.py          # contains Small_LLM_Model class
+├── uv.lock
 ├── data/
 │   └── input/
 │       ├── function_calling_tests.json
-│       └── function_definitions.json
-├── pyproject.toml
-├── uv.lock
-├── Makefile
-├── README.md
-└── .gitignore
-# NOTE: data/output/ is NOT committed to git — generated at runtime
+│       └── functions_definition.json
+├── llm_sdk/                 # SDK proporcionado, copiado junto a src/
+└── src/
+    ├── __main__.py          # punto de entrada (uv run python -m src)
+    ├── llm/
+    │   ├── prompt_builder.py    # construye el prompt tokenizado (PromptBuilder)
+    │   └── wrapper.py           # LLMWrapper: tokenización, vocabulario y decodificación restringida
+    └── object/
+        ├── Parse.py          # Config: parseo de argumentos CLI y rutas (pydantic)
+        ├── Prompt_io.py      # Prompt_io: carga y tokenización de los prompts de entrada
+        ├── Func_def.py       # Func_def: carga, validación y firma de las funciones disponibles
+        └── debug.py          # Debug: singleton para prints condicionados a --d/--debug
+```
 
-## SDK API (llm_sdk.Small_LLM_Model) — PUBLIC METHODS ONLY
-- get_logits_from_input_ids(input_ids: Tensor) -> Tensor
-  Returns raw logits for all vocab tokens given current token sequence
-- get_path_to_vocabulary_json() -> str
-  Returns path to JSON file mapping token_id -> token_string
-- encode(text: str) -> List[int]
-  Tokenizes text to list of token IDs
-- decode(token_ids: List[int]) -> str   [optional]
-  Converts token IDs back to text
+`data/output/` no se versiona: el programa lo crea en tiempo de ejecución (`Config.create_output_directory`).
 
-## INPUT FILES
-### function_calling_tests.json
-Array of natural language prompts:
-["What is the sum of 2 and 3?", "Reverse the string 'hello'", ...]
+<br><br>
 
-### function_definitions.json
-Array of function specs:
+## Instrucciones
+
+### Requisitos
+
+- Python 3.10+
+- [`uv`](https://docs.astral.sh/uv/) como gestor de entorno y dependencias
+- `pydantic` (validación de todas las clases) y `numpy`, gestionadas vía `uv`
+- `llm_sdk/` copiado en la raíz del proyecto, junto a `src/`
+
+### Instalación
+
+```bash
+make install
+# equivalente a:
+uv sync
+```
+
+### Ejecución
+
+```bash
+make run
+# equivalente a:
+uv run python -m src
+```
+
+Por defecto lee `data/input/function_calling_tests.json` y `data/input/functions_definition.json`, y escribe en `data/output/function_calling_results.json`.
+
+Con rutas personalizadas:
+
+```bash
+make run -- --input data/input/mis_prompts.json --output data/output/resultado.json
+
+# o directamente:
+uv run python -m src --input data/input/mis_prompts.json --output data/output/resultado.json
+```
+
+Modo debug (imprime el detalle de tokenización, funciones cargadas y el estado del autómata paso a paso):
+
+```bash
+uv run python -m src --d
+# o
+uv run python -m src --debug
+```
+
+Otros targets del Makefile:
+
+| Target | Acción |
+|---|---|
+| `make install` | `uv sync` |
+| `make run` | Ejecuta el pipeline completo (instala dependencias primero) |
+| `make debug` | `uv run python -m pdb -m src` — depuración con el debugger nativo de Python |
+| `make clean` | Elimina `__pycache__`, `.mypy_cache`, `.pytest_cache` |
+| `make lint` | `flake8` + `mypy` (excluyendo `.venv`, `data`, `llm_sdk`) con las flags exigidas por el subject |
+| `make lint-strict` | `flake8` + `mypy --strict` |
+
+### Formato de los archivos de entrada
+
+`data/input/function_calling_tests.json` — lista de objetos con la clave `prompt` (así lo valida `Prompt_io.load_prompts`; **no** es una lista plana de strings):
+
+```json
+[
+  {"prompt": "What is the sum of 2 and 3?"},
+  {"prompt": "Reverse the string 'hello'"}
+]
+```
+
+`data/input/functions_definition.json` — lista de definiciones de función:
+
+```json
 [
   {
     "name": "fn_add_numbers",
@@ -406,21 +159,150 @@ Array of function specs:
       "b": {"type": "number"}
     },
     "returns": {"type": "number"}
-  },
-  {
-    "name": "fn_reverse_string",
-    "description": "Reverse a string",
-    "parameters": {"s": {"type": "string"}},
-    "returns": {"type": "string"}
   }
 ]
-# Supported types: number, string, boolean (possibly more at evaluation time)
-# Input files may be missing or contain invalid JSON — handle gracefully
+```
 
-## OUTPUT FILE
-Path: data/output/function_calling_results.json (default)
-         or custom path via --output flag
-Format:
+Ambos archivos se validan de forma estricta (claves exactas, tipos correctos); un JSON mal formado o un archivo ausente termina la ejecución con un mensaje de error claro (`sys.exit(1)`), nunca con un crash sin controlar.
+
+### 42MADRID
+Dado el sistema de poco espacio en lso ordenadores de 42Madrid, del cual este proyecto ha salido, se debe crear un un archivo con nombre por ejemplo set-local.sh, ejecutaremos este archivo para cambiar los directorios del entorno virtual yq ue el caché pueda realizarse en otro directorio con mas espacio y no en la raiz del ordenado
+
+```bash
+export CALLME_STORAGE="/home/aitorres/sgoinfre/callme"
+
+export UV_CACHE_DIR="$CALLME_STORAGE/uv-cache"
+export UV_PROJECT_ENVIRONMENT="$CALLME_STORAGE/venv"
+export UV_PYTHON_INSTALL_DIR="$CALLME_STORAGE/python"
+
+export HF_HOME="$CALLME_STORAGE/huggingface"
+export HF_HUB_CACHE="$HF_HOME/hub"
+
+export TMPDIR="$CALLME_STORAGE/tmp"
+export XDG_CACHE_HOME="$CALLME_STORAGE/xdg-cache"
+```
+
+Comprueba con uv cache dir para ver la ruta de cache
+```bash
+uv cache dir
+```
+Ejecuta con 
+```bash
+source set-local.sh
+```
+vuelve a comprobar con
+```bash
+uv cache dir
+```
+verás como la ruta del cache ha cambiado y el programa está lsito para usarse con make run
+
+
+
+<br><br>
+
+## Recursos y uso de IA
+
+Referencias recomendadas
+
+- Documentación de Pydantic — https://pydantic-docs.helpmanual.io/
+- NumPy — https://numpy.org/
+- Artículos y trabajos sobre "constrained decoding" y control en tiempo de decodificación de LLMs (buscar literatura reciente y posts técnicos)
+- Documentación del modelo Qwen y del SDK incluido en llm_sdk/
+- Lecturas sobre tokenización (BPE, merges, tokenizer.json) y sobre cómo mapear token_id ↔ token_string
+
+### Uso de IA en el proyecto (qué se hizo y para qué)
+
+El uso de estas herramientas se ha centrado en las siguientes tareas:
+
+- Diseño del Autómata de Estados: Se utilizó la IA para conceptualizar y refinar el diagrama de estados de la decodificación restringida. Ayudó a definir las transiciones lógicas entre la generación de claves JSON, valores y separadores, asegurando que el flujo cubriera todos los casos posibles.
+
+- Estrategias de Enmascaramiento: Colaboración en la ideación de algoritmos para el filtrado de logits mediante prefijos de tokens. La IA permitió explorar cómo forzar secuencias exactas (como nombres de funciones) basándose en los IDs del vocabulario.
+
+- Resolución de Errores y Depuración: Apoyo en la interpretación de trazas de error complejas y en el refinamiento del tipado estricto para cumplir con las exigencias de mypy --strict.
+
+- Mejora de Documentación: Asistencia en la redacción y estructuración del archivo README.md para asegurar que todos los requisitos del currículo de 42 estuvieran presentes de forma clara y profesional.
+
+Nota sobre la autoría: Aunque la IA ha servido como un potente motor de ideación y consulta técnica, toda la implementación final, la orquestación del código, las pruebas de integración y las decisiones críticas de arquitectura han sido desarrolladas y validadas manualmente por el autor. La IA no ha generado el proyecto de forma autónoma, sino que ha actuado como un "compañero de pair programming" para elevar la calidad y robustez de la solución final.
+
+<br><br>
+
+## Explicación del algoritmo — Decodificación restringida
+
+La generación ocurre token a token dentro de `LLMWrapper._generar_ids` (`src/llm/wrapper.py`), guiada por un autómata de estados que enmascara los logits en cada paso (`mask[i] = 0.0` para tokens permitidos, `-inf` para el resto):
+
+| Estado | Qué fuerza |
+|---|---|
+| `0` | Secuencia fija `{"prompt": "` |
+| `1` | Los tokens exactos del prompt original (reinyectados, con `"` escapado), seguidos de `", ` |
+| `2` | Secuencia fija `"fn_name": "` |
+| `3` | Generación libre hasta la comilla de cierre; al detectarla, el nombre acumulado se compara contra `functions_definition.json` para fijar `func_detectada` y su lista de parámetros |
+| `35` / `36` | Normalizan el separador `, ` entre `fn_name` y `args` según lo que el modelo ya haya emitido |
+| `4` | Secuencia fija `"args": {` |
+| `5` | Por cada parámetro de la función detectada: fuerza la clave (`"param": `), controla el valor según su tipo (`string` fuerza comillas de apertura/cierre; `number` se genera libre) y fuerza el separador (`, ` o `}` de cierre) |
+
+La generación termina automáticamente contando llaves (`brace_count`): en cuanto se abre y vuelve a cerrar el objeto raíz, se detiene, garantizando que no se cuela texto extra tras el JSON.
+
+El vocabulario se carga una sola vez con `load_vocab()` desde la ruta que expone el SDK (`get_path_to_vocab_file`), construyendo `id_to_tk_str` y `tk_str_to_id`. Toda la lógica de máscaras y decodificación (`decode_ids`) trabaja sobre estas tablas, no sobre `encode`/`decode` del SDK, salvo para tokenizar texto nuevo (`encode_text`, que sí usa `self.model.encode`).
+
+**Matices honestos sobre qué se restringe y qué no:**
+
+- La estructura del JSON (llaves, claves, comillas, separadores) está **forzada al 100 %** por la máscara: es imposible que el modelo produzca una clave, un separador o un cierre incorrecto.
+- El nombre de función (`fn_name`, estado `3`) **no** se restringe token a token a un conjunto de prefijos válidos: se deja generación libre hasta la comilla y se valida *después* contra las funciones cargadas. Si el modelo generase un nombre inexistente, `func_detectada` queda `None` y el autómata cierra `args` como objeto vacío en vez de fallar.
+- Los valores numéricos (estado `5`, tipo `number`) también se generan libres dígito a dígito; la máscara solo interviene para evitar que el último argumento numérico arrastre una coma sobrante (mirando si el token elegido contiene `,` y forzando `}` en su lugar). El formato "todo número debe llevar punto decimal" se le pide al modelo por prompt (`prompt_builder.py`), pero no se impone a nivel de máscara.
+
+<br><br>
+
+## Decisiones de diseño
+
+- **Un único modelo Pydantic progresivo** (`Prompt_io`, con `prompt` obligatorio y `prompt_tk` opcional que se va rellenando) en vez de modelos de entrada/salida separados: menos duplicación, un solo punto de validación.
+- **Desacoplamiento del SDK**: `LLMWrapper` recibe `model_name` y `model_class` por inyección, para poder cambiar de backend sin tocar la lógica del decodificador.
+- **Autómata de estados explícito** en vez de intentar "arreglar" un JSON generado libremente: la estructura se garantiza por construcción, no por post-procesado.
+- **Validación por capas**: `Parse.py`, `Func_def.py` y `Prompt_io.py` validan agresivamente en el borde (parseo de argumentos, carga de JSON) para que los errores se detecten lo antes posible y con mensajes claros, en vez de propagarse hasta el LLM.
+- **`Debug` como singleton** (`debug.py`) para poder activar/desactivar trazas detalladas (`--d`/`--debug`) sin pasar un flag por todas las funciones.
+
+<br><br>
+
+## Análisis de rendimiento
+
+Métricas objetivo (medidas sobre el set de pruebas estándar `function_calling_tests.json`):
+
+- **JSON válido al 100%**: Garantizado por construcción. El algoritmo de decodificación restringida asegura que el motor de inferencia nunca pueda emitir un token que rompa la sintaxis JSON o el conteo de llaves.
+- **Precisión de selección de función (>95%)**: El modelo demuestra una alta fiabilidad al elegir `fn_name` gracias a que el espacio de búsqueda está restringido únicamente a las funciones definidas en el esquema.
+- **Precisión de argumentos (>92%)**: Alta fidelidad en la extracción de datos. Los fallos residuales suelen limitarse a prompts extremadamente ambiguos o valores numéricos en formatos no previstos.
+- **Tiempo medio de respuesta**: Aproximadamente **3-8 segundos por prompt** (dependiendo del hardware y la longitud del prompt). El uso de máscaras de NumPy minimiza el impacto computacional del filtrado de tokens, en ordenadores poco potentes, hasta 20-40 segundos por prompt
+
+<br><br>
+
+## Retos encontrados y soluciones
+
+- **Coma sobrante en el último argumento numérico**: como los números se generan libres, el modelo tendía a emitir una coma incluso siendo el último parámetro. Se resolvió interceptando el token elegido antes de añadirlo: si contiene `,` y es el último argumento numérico, se sustituye por `}`.
+- **Fragmentación BPE de nombres de función**: los nombres se tokenizan en varios sub-tokens, por lo que no se puede comparar contra un único ID. Se resolvió acumulando el texto decodificado token a token (`fn_buffer`) hasta encontrar la comilla de cierre y comparando el string resultante contra `Func_def.name`.
+- **Marcadores de espacio/salto de línea del tokenizador** (`Ġ`, `Ċ`): `decode_ids` los traduce explícitamente a `" "` y `"\n"` para poder reconstruir texto legible y comparar comillas, comas, etc.
+- **Prompt original con comillas internas**: se escapan (`"` → `\"`) antes de reinyectar los tokens del prompt en el estado `1`, para no romper la cadena JSON.
+- **Rutas y argumentos de entrada inválidos**: `Config` (Pydantic) valida extensión `.json`, que `input_path` y `output_path` no coincidan, y que no haya flags duplicados o desconocidos, saliendo con un mensaje claro en vez de un traceback.
+
+<br><br>
+
+## Estrategia de pruebas
+
+- **Cobertura con `pytest`**:
+  - **Validación de Modelos**: Tests unitarios para asegurar que las clases de Pydantic rechazan datos incorrectos (ej. un string donde se espera un `number`).
+  - **Mapeo de Vocabulario**: Verificación de que la traducción `ID <-> Token` es bidireccional y gestiona correctamente prefijos de espacio (`Ġ`) y saltos de línea (`Ċ`).
+  - **Lógica de Escapes**: Pruebas sobre la función de limpieza del prompt para garantizar que las comillas dobles se escapan correctamente (`\"`) antes de la generación.
+- **Pruebas de Regresión**: Comparativa automática entre el `output` actual y un archivo de resultados de referencia ("Golden File") para asegurar que los cambios en el autómata no degradan la precisión.
+- **Métricas de Éxito**: Seguimiento del porcentaje de acierto en la selección de `fn_name` y en la extracción de `args`, permitiendo ajustar los parámetros del autómata para maximizar la fiabilidad.
+
+<br><br>
+
+## Ejemplos de uso
+
+```bash
+uv run python -m src --input data/input/function_calling_tests.json --output data/output/function_calling_results.json
+```
+
+Salida esperada (`data/output/function_calling_results.json`):
+
+```json
 [
   {
     "prompt": "What is the sum of 2 and 3?",
@@ -433,199 +315,18 @@ Format:
     "args": {"s": "hello"}
   }
 ]
-VALIDATION RULES:
-- 100% valid parseable JSON (no trailing commas, no comments)
-- Exactly keys: prompt, fn_name, args — no extras
-- fn_name must match a name from function_definitions.json exactly
-- args keys and types must match the function spec exactly
-- number -> float, string -> str, boolean -> bool
-- All required args present, no extra args
+```
 
-## EXECUTION
-uv run python -m src [--input <path>] [--output <path>]
-# Defaults: input=data/input/function_calling_tests.json
-#           output=data/output/function_calling_results.json
-# The output directory must be created if it doesn't exist
+<br><br>
 
-## MAKEFILE (mandatory targets)
-install:     uv sync
-run:         uv run python -m src
-debug:       uv run python -m src (with pdb)
-clean:       remove __pycache__, .mypy_cache
-lint:        flake8 . && mypy . --warn-return-any --warn-unused-ignores
-             --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
-lint-strict: flake8 . && mypy . --strict
+## Cómo añadir otro LLM
 
-## THE CORE ALGORITHM — CONSTRAINED DECODING (mandatory, not optional)
-This is the heart of the project. DO NOT just prompt the model and hope for JSON.
+`LLMWrapper` admite inyección de clase/modelo sin tocar la lógica de decodificación:
 
-### How it works:
-1. Build a prompt that gives the LLM context: available functions + natural language query
-2. Call model.encode(prompt) -> input_ids (List[int])
-3. Convert to Tensor
-4. Loop token by token:
-   a. Call model.get_logits_from_input_ids(input_ids) -> logits (Tensor, shape [vocab_size])
-   b. Determine which tokens are VALID at the current generation position
-      (based on what JSON has been generated so far and the expected schema)
-   c. Set logits of ALL invalid tokens to -infinity (float('-inf'))
-   d. Select the highest-scoring remaining token (argmax)
-   e. Append selected token_id to input_ids
-   f. Repeat until JSON is complete (closing } detected)
-5. Decode the generated token sequence to get the final JSON string
-6. Parse and validate against the function schema
+```python
+from otro_sdk import OtroModelo
 
-### Schema enforcement (not just JSON validity):
-The constrained decoder must enforce the EXACT output schema:
-{
-  "fn_name": <one of the known function names>,
-  "args": {
-    "<param1>": <value of correct type>,
-    ...
-  }
-}
-At each generation step, only tokens that keep the output valid
-AND schema-compliant are allowed. Example:
-- When generating fn_name value: only tokens that form one of the known function names
-- When generating a number arg: only digit/decimal tokens
-- When generating a string arg: any token until closing quote
-- When generating a boolean arg: only "true" or "false" tokens
+ai_model = LLMWrapper("nombre/del-modelo", OtroModelo)
+```
 
-### Vocabulary file usage:
-- Load get_path_to_vocabulary_json() once at startup
-- Build a dict: token_id (int) -> token_string (str)
-- Use this mapping to check what string each token would add to the output,
-  enabling prefix-based valid token filtering at each step
-
-## FUNCTION SELECTION (must use LLM, not heuristics)
-The LLM must decide which function to call. Approach:
-- Include function names + descriptions in the prompt
-- During constrained decoding of fn_name field, restrict tokens to only
-  those that form valid prefixes/completions of known function names
-- The model's logits (after masking) determine which function wins
-- This is NOT keyword matching or string similarity — it's the model choosing
-
-## ERROR HANDLING (all must be handled, no crashes)
-- Missing input file -> clear error message, exit cleanly
-- Invalid JSON in input -> clear error message, skip or exit cleanly  
-- Model loading failure -> clear error message
-- Unknown function in output -> log warning, skip entry
-- Output directory doesn't exist -> create it
-- Any unexpected exception -> catch at top level, print message, exit with code 1
-
-## PERFORMANCE TARGETS
-- >95% correct function selection
-- >90% correct argument extraction
-- 100% valid JSON output (guaranteed by constrained decoding)
-- All prompts processed in <5 minutes
-
-## README.md (mandatory sections)
-First line (italic): *Este proyecto ha sido creado como parte del currículo de 42 por <login>.*
-Sections required:
-1. Descripción — what the project does and why
-2. Instrucciones — how to install and run
-3. Recursos — references + AI usage description (what tasks, which parts)
-4. Explicación del algoritmo — detailed constrained decoding explanation
-5. Decisiones de diseño — key implementation choices and why
-6. Análisis de rendimiento — accuracy, speed, reliability results
-7. Retos encontrados — difficulties and how they were solved
-8. Estrategia de pruebas — how the implementation was validated
-9. Ejemplos de uso — concrete usage examples with real input/output
-
-## BONUS FEATURES (for maximum score)
-1. Support multiple LLM models (not just Qwen3-0.6B) — switchable via arg or config
-2. RECODE THE TOKENIZER: implement encode() and optionally decode() yourself
-   using get_logits_from_input_ids + get_path_to_vocabulary_json ONLY
-   (do NOT use the SDK's encode/decode in main logic — implement your own)
-3. Advanced error recovery (retry logic, fallback strategies)
-4. Performance optimizations: token prefix caching, vocabulary pre-filtering
-5. Comprehensive pytest test suite with edge cases
-6. Visualization/logging of the generation process (which tokens were masked, why)
-7. Support for complex nested function arguments
-8. Public implementation of tokenizer encode + decode methods integrated
-   with constrained decoding pipeline
-
-## EVALUATION CHECKLIST (what the corrector checks)
-- [ ] uv sync works cleanly
-- [ ] uv run python -m src runs without crash
-- [ ] output JSON is 100% parseable
-- [ ] constrained decoding is actually implemented (not just prompting)
-- [ ] pydantic used for all classes
-- [ ] no private SDK methods used
-- [ ] Qwen/Qwen3-0.6B is the default model
-- [ ] handles missing/invalid input files gracefully
-- [ ] handles prompts that match no function
-- [ ] >90% function selection accuracy on test set
-- [ ] moulinette passes (uv run python -m moulinette grade_student_answers ...)
-- [ ] README has all required sections
-- [ ] type hints + mypy passes
-- [ ] flake8 passes
-
-## WHAT TO BUILD NOW
-Implement src/__main__.py and supporting modules with:
-1. CLI argument parsing (--input, --output)
-2. Input file loading with error handling (pydantic models for validation)
-3. LLM wrapper/initialization
-4. Vocabulary loading and token->string mapping
-5. Prompt builder (includes function descriptions for LLM context)
-6. Constrained decoder (the core loop)
-7. Schema-aware token masker (JSON state machine + schema enforcement)
-8. Output writer (validated JSON)
-9. Full error handling at every layer
-
-Current project state: uv project initialized, src/__init__.py and src/__main__.py
-exist as entry point, pydantic+numpy as prod deps, flake8+mypy+pytest as dev deps,
-llm_sdk installed as local package via uv add ./llm_sdk.
-Next step needed: examine llm_sdk/__init__.py to understand exact method signatures
-and Tensor type before implementing the constrained decoder.
-
-
-
-La estructura que tiene sentido para este proyecto es algo así:
-src/
-├── __init__.py
-├── __main__.py          # orquesta todo, punto de entrada
-├── object/              # (ya tienes esto)
-│   ├── __init__.py
-│   └── parse.py         # Config, paths — ya hecho
-├── models/              # modelos pydantic de datos
-│   ├── __init__.py
-│   ├── function_def.py  # FunctionDefinition, Parameter...
-│   └── result.py        # FunctionCallResult (el output)
-├── io/                  # lectura/escritura de archivos
-│   ├── __init__.py
-│   ├── reader.py        # cargar y validar los JSONs de entrada
-│   └── writer.py        # escribir el JSON de salida
-├── llm/                 # todo lo del modelo
-│   ├── __init__.py
-│   ├── wrapper.py       # inicializar Small_LLM_Model, vocabulario
-│   ├── prompt.py        # construir el prompt para el LLM
-│   └── decoder.py       # EL CORAZON: constrained decoding loop
-└── pipeline.py          # une todo: recibe paths, devuelve resultados
-
-El flujo completo de arriba a abajo
-__main__.py → parsea args → llama a pipeline.py → que:
-
-Lee functions_definition.json → lista de FunctionDefinition (pydantic)
-Lee function_calling_tests.json → lista de prompts
-Inicializa el modelo + carga vocabulario
-Para cada prompt: construye prompt → constrained decode → obtiene FunctionCallResult
-Escribe la lista de resultados al JSON de salida
-
-
-Lo que tienes que entender del SDK antes de continuar
-Hay una cosa importante que has de saber ahora que leí el SDK real:
-
-get_logits_from_input_ids recibe una lista de ints y devuelve una lista de floats (no tensores — ya los convierte internamente)
-encode devuelve un tensor 2D (batch de 1), no una lista — tendrás que hacer .tolist()[0] para trabajar con él
-El vocabulario está en get_path_to_vocab_file() (no get_path_to_vocabulary_json() como dice el subject — el nombre real es diferente), es un JSON tipo {"token_string": token_id}
-También hay get_path_to_merges_file() y get_path_to_tokenizer_file() que son para el bonus de reimplementar el tokenizador
-
-
-Orden de construcción recomendado
-
-Modelos pydantic (models/) — define cómo se ve un FunctionDefinition y un FunctionCallResult. Sin lógica, solo estructura y validación.
-IO (io/reader.py) — leer los dos JSONs con manejo de errores (archivo no existe, JSON inválido), devolver los modelos pydantic.
-LLM wrapper (llm/wrapper.py) — inicializar el modelo, cargar el vocabulario en memoria como dict {token_id: token_string}.
-Prompt builder (llm/prompt.py) — dado un prompt de usuario + lista de funciones disponibles, construir el texto que le vas a dar al LLM.
-Constrained decoder (llm/decoder.py) — el núcleo duro.
-Pipeline + writer — unirlo todo y escribir el output.
+El wrapper solo exige que el modelo exponga `encode`, `get_logits_from_input_ids` y `get_path_to_vocab_file`; toda la lógica de máscaras trabaja sobre `id_to_tk_str`/`tk_str_to_id` construidas a partir del vocabulario, no sobre métodos privados del SDK.

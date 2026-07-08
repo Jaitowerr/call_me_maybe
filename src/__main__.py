@@ -1,12 +1,13 @@
 import sys
+from pathlib import Path
+from typing import List
 from src.object.Parse import Config
 from src.object.Prompt_io import Prompt_io
 from src.object.Func_def import Func_def
-from pathlib import Path
 from src.llm.wrapper import LLMWrapper
 from src.llm.prompt_builder import PromptBuilder
-from typing import List
 from src.object.debug import Debug
+from llm_sdk import Small_LLM_Model  # type: ignore[attr-defined]
 
 
 if __name__ == "__main__":
@@ -42,7 +43,7 @@ if __name__ == "__main__":
     rutas.create_output_directory()
     print("\n\n\033[1;32m[OK]\033[0m   Output directory ready.\n")
 
-    ai_model = LLMWrapper()
+    ai_model = LLMWrapper("Qwen/Qwen3-0.6B", Small_LLM_Model)
     print("\n\n\033[1;32m[OK]\033[0m   LLM Model initialized.")
 
     for prm_io in list_prompt:

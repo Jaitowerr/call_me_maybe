@@ -1,5 +1,5 @@
 from llm_sdk import Small_LLM_Model  # type: ignore[attr-defined]
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Type
 import json
 import sys
 from src.object.Func_def import Func_def
@@ -7,8 +7,12 @@ from src.object.debug import Debug
 
 
 class LLMWrapper():
-    def __init__(self, model_name: str = 'Qwen/Qwen3-0.6B'):
-        self.model = Small_LLM_Model(model_name)
+    def __init__(
+        self,
+        model_name: str = 'Qwen/Qwen3-0.6B',
+        model_class: Type[Any] = Small_LLM_Model
+    ):
+        self.model = model_class(model_name)
 
     def encode_text(self, text: str) -> List[int]:
         """
