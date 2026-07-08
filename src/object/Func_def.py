@@ -4,126 +4,181 @@ import sys
 import json
 from pathlib import Path
 
+
 class Func_def(BaseModel):
     """
-    Representa una definición de función según function_definitions.json.
+    Represents a function definition from function_definitions.json.
     parameters: {"a": {"type": "number"}, ...}
     returns: {"type": "number"}
     """
     name: str
     description: str
-    parameters: Dict[str, Dict[str, str]] 
+    parameters: Dict[str, Dict[str, str]]
     returns: Dict[str, str]
     signature: Optional[str] = None
-    signature_tk : Optional[List[int]] = None	# tokenización del texto del prompt.
+    signature_tk: Optional[List[int]] = None  # tokenized prompt text.
 
     @classmethod
     def load_func_def(cls, file_path: Path) -> List["Func_def"]:
         """
-        Lee functions_definitions.json y devuelve una lista de Func_def.
-        Formato esperado: lista de objetos con claves: name, description, parameters, returns
+        Reads functions_definitions.json and returns a list of Func_def.
+        Expected format: list of objects with keys:
+        name, description, parameters, returns
         """
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except FileNotFoundError:
-            print(f"Error: no se encontró el archivo de definiciones: {file_path}", file=sys.stderr)
+            print(
+                f"Error: definitions file not found: {file_path}",
+                file=sys.stderr
+            )
             sys.exit(1)
         except json.JSONDecodeError as e:
-            print(f"Error: JSON inválido en {file_path}: {e}", file=sys.stderr)
+            print(
+                f"Error: invalid JSON in {file_path}: {e}",
+                file=sys.stderr
+            )
             sys.exit(1)
 
         if not isinstance(data, list):
-            print(f"Error: el JSON de definiciones debe ser una lista en {file_path}", file=sys.stderr)
+            print(
+                f"Error: definitions JSON must be a list in {file_path}",
+                file=sys.stderr
+            )
             sys.exit(1)
 
         definitions: List[Func_def] = []
         for idx, item in enumerate(data):
             if not isinstance(item, dict):
-                print(f"Error: elemento #{idx} en {file_path} no es un objeto/dict.", file=sys.stderr)
+                print(
+                    f"Error: element #{idx} in {file_path} "
+                    "is not a dict.",
+                    file=sys.stderr
+                )
                 sys.exit(1)
 
             expected_keys = {"name", "description", "parameters", "returns"}
             missing = expected_keys - set(item.keys())
             extra = set(item.keys()) - expected_keys
             if missing:
-                print(f"Error: elemento #{idx} en {file_path} falta claves: {missing}", file=sys.stderr)
+                print(
+                    f"Error: element #{idx} in {file_path} "
+                    f"is missing keys: {missing}",
+                    file=sys.stderr
+                )
                 sys.exit(1)
             if extra:
-                print(f"Error: elemento #{idx} en {file_path} tiene claves inesperadas: {extra}", file=sys.stderr)
+                print(
+                    f"Error: element #{idx} in {file_path} "
+                    f"has unexpected keys: {extra}",
+                    file=sys.stderr
+                )
                 sys.exit(1)
 
-            # Validamos parámetros: debe ser dict de dicts con clave 'type'
             params = item["parameters"]
             if not isinstance(params, dict):
-                print(f"Error: 'parameters' del elemento #{idx} debe ser un dict.", file=sys.stderr)
+                print(
+                    f"Error: 'parameters' of element #{idx} "
+                    "must be a dict.",
+                    file=sys.stderr
+                )
                 sys.exit(1)
             for pname, pspec in params.items():
-                if not isinstance(pspec, dict) or "type" not in pspec or not isinstance(pspec["type"], str):
-                    print(f"Error: parámetro '{pname}' del elemento #{idx} tiene formato inválido (debe ser {{'type': '...' }}).", file=sys.stderr)
+                valid = (
+                    isinstance(pspec, dict)
+                    and "type" in pspec
+                    and isinstance(pspec["type"], str)
+                )
+                if not valid:
+                    print(
+                        f"Error: parameter '{pname}' of element #{idx} "
+                        "has invalid format "
+                        "(expected {'type': '...'}).",
+                        file=sys.stderr
+                    )
                     sys.exit(1)
 
-            # Validamos returns
             returns = item["returns"]
-            if not isinstance(returns, dict) or "type" not in returns or not isinstance(returns["type"], str):
-                print(f"Error: 'returns' del elemento #{idx} tiene formato inválido (debe ser {{'type': '...' }}).", file=sys.stderr)
+            valid_returns = (
+                isinstance(returns, dict)
+                and "type" in returns
+                and isinstance(returns["type"], str)
+            )
+            if not valid_returns:
+                print(
+                    f"Error: 'returns' of element #{idx} "
+                    "has invalid format "
+                    "(expected {'type': '...'}).",
+                    file=sys.stderr
+                )
                 sys.exit(1)
 
-            # Si todo OK, validamos con Pydantic (lanzará error si algo no cuadra)
             try:
                 func = Func_def(**item)
             except Exception as e:
-                print(f"Error al validar Func_def en elemento #{idx}: {e}", file=sys.stderr)
+                print(
+                    f"Error validating Func_def at element #{idx}: {e}",
+                    file=sys.stderr
+                )
                 sys.exit(1)
 
             definitions.append(func)
 
         return definitions
-    
-    def build_signature(self):
-        """Construye la firma textual de la función."""
+
+    def build_signature(self) -> None:
+        """Builds the textual signature of the function."""
         parameters = []
         for key, value in self.parameters.items():
             value_type = value['type']
             text = f'{key} ({value_type})'
             parameters.append(text)
-        
+
         parameters_join = ', '.join(parameters)
 
         self.signature = (
             f'- {self.name}: {self.description}. '
             f'Parameters: {parameters_join}. '
             f"Returns: {self.returns['type']}"
-        )    
-        # print(self.signature)   # eliminar despues
+        )
 
-    def tokenize_signature(self, encoder_func: Callable[[str], List[int]]) -> None:
+    def tokenize_signature(
+        self, encoder_func: Callable[[str], List[int]]
+    ) -> None:
         """
-        Tokeniza la firma usando la función dada.
-        Valida que el resultado sea una lista de enteros.
+        Tokenizes the signature using the given encoder function.
+        Validates that the result is a list of integers.
         """
-        if self.signature is None:
-            self.build_signature()
         try:
+            if self.signature is None:
+                self.build_signature()
+                if self.signature is None:
+                    raise ValueError("Signature could not be built (is None).")
             tokens = encoder_func(self.signature)
             if not isinstance(tokens, list):
-                raise Exception("El resultado no es una lista.")
+                raise Exception("Result is not a list.")
             if not all(isinstance(_, int) for _ in tokens):
-                raise Exception("La lista contiene elementos que no son enteros.")
+                raise Exception("List contains non-integer elements.")
 
             self.signature_tk = tokens
         except Exception as e:
-            print(f"Error crítico durante la tokenización de la firma de '{self.name}': {e}")
+            print(
+                f"Critical error tokenizing signature of '{self.name}': {e}"
+            )
             sys.exit(1)
-            
 
     def get_signature_tk(self) -> List[int]:
         if self.signature_tk is None:
-            raise ValueError(f"La firma de {self.name} no está tokenizada.")
+            raise ValueError(
+                f"Signature of '{self.name}' is not tokenized."
+            )
         return self.signature_tk
-    
-    def get_name_tk(self, encoder_func: Callable[[str], List[int]]) -> List[int]:
+
+    def get_name_tk(
+        self, encoder_func: Callable[[str], List[int]]
+    ) -> List[int]:
         """
-        Tokeniza y devuelve el nombre de la función como lista de IDs.
+        Tokenizes and returns the function name as a list of IDs.
         """
         return encoder_func(self.name)

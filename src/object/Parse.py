@@ -1,26 +1,43 @@
 import os
 import sys
 from typing import List, Any, Dict
-from pydantic import BaseModel, Field, field_validator, model_validator, ValidationError
+from pydantic import (
+    BaseModel,
+    Field,
+    field_validator,
+    model_validator,
+    ValidationError,
+)
 import json
 from src.object.debug import Debug
 
 
 class Config(BaseModel):
-    input_path: str = Field(default="data/input/function_calling_tests.json")
-    output_path: str = Field(default="data/output/function_calling_results.json")
+    input_path: str = Field(
+        default="data/input/function_calling_tests.json"
+    )
+    output_path: str = Field(
+        default="data/output/function_calling_results.json"
+    )
 
     @field_validator("input_path", "output_path")
     @classmethod
     def check_json_extension(cls, v: str) -> str:
         if not v.endswith(".json"):
-            raise ValueError(f"El archivo debe terminar estrictamente en '.json'. Recibido: '{v}'")
+            raise ValueError(
+                "The file must strictly end with '.json'. "
+                f"Received: '{v}'"
+            )
         return v
 
     @model_validator(mode="after")
     def check_paths_are_different(self) -> "Config":
-        if os.path.abspath(self.input_path) == os.path.abspath(self.output_path):
-            raise ValueError("La ruta de entrada (--input) y de salida (--output) no pueden ser iguales.")
+        in_abs = os.path.abspath(self.input_path)
+        out_abs = os.path.abspath(self.output_path)
+        if in_abs == out_abs:
+            raise ValueError(
+                "Input and output paths cannot be the same."
+            )
         return self
 
     @classmethod
@@ -32,73 +49,89 @@ class Config(BaseModel):
             while i < len(args):
                 if args[i] == "--input":
                     if "--input" in seen_flags:
-                        raise ValueError("La bandera --input está duplicada.")
-                    if i + 1 >= len(args) or args[i+1].startswith("--"):
-                        raise ValueError("La bandera --input requiere que especifiques una ruta de archivo.")
-                    parsed_data["input_path"] = args[i+1]
+                        raise ValueError(
+                            "The --input flag is duplicated."
+                        )
+                    if i + 1 >= len(args) or args[i + 1].startswith("--"):
+                        raise ValueError(
+                            "The --input flag requires a file path."
+                        )
+                    parsed_data["input_path"] = args[i + 1]
                     seen_flags.add("--input")
                     i += 2
                 elif args[i] == "--output":
                     if "--output" in seen_flags:
-                        raise ValueError("La bandera --input está duplicada.")
-                    if i + 1 >= len(args) or args[i+1].startswith("--"):
-                        raise ValueError("La bandera --output requiere que especifiques una ruta de archivo.")
-                    parsed_data["output_path"] = args[i+1]
+                        raise ValueError(
+                            "The --output flag is duplicated."
+                        )
+                    if i + 1 >= len(args) or args[i + 1].startswith("--"):
+                        raise ValueError(
+                            "The --output flag requires a file path."
+                        )
+                    parsed_data["output_path"] = args[i + 1]
                     seen_flags.add("--output")
                     i += 2
-                elif args[i] in ('--d' , '--debug'):
+                elif args[i] in ('--d', '--debug'):
                     if "debug" in seen_flags:
-                        raise ValueError("La bandera --debug está duplicada.")
+                        raise ValueError(
+                            "The --debug flag is duplicated."
+                        )
                     Debug().enable()
                     seen_flags.add("debug")
                     i += 1
                 else:
                     raise ValueError(
-                        f"Argumento no reconocido: '{args[i]}'.\n"
-                        "Uso permitido: make run [--input \"ruta/archivo.json\"] [--output \"ruta/archivo.json\"]"
+                        f"Unrecognized argument: '{args[i]}'.\n"
+                        "Usage: make run "
+                        "[--input \"path/to/file.json\"] "
+                        "[--output \"path/to/file.json\"]"
                     )
 
-            # Llama a Pydantic para fabricar el objeto y ejecutar los validadores automáticos
             return cls(**parsed_data)
 
         except (ValueError, ValidationError) as e:
-            print(f"\033[1;31m\n[ERROR DE ARGUMENTOS]\033[0m")
-            print(f'  - ', e)
+            print("\033[1;31m\n[ARGUMENT ERROR]\033[0m")
+            print("  -", e)
             sys.exit(1)
-            
+
     def create_output_directory(self) -> None:
         """
-        Verifica si existe el directorio de la ruta de salida y lo crea si no existe.
-        Gestiona errores de permisos o cualquier otra excepción del sistema.
+        Verifies if the output directory exists and creates it if not.
+        Handles permission errors and any other system exceptions.
         """
         try:
-            # Extraemos solo la ruta sin el .json)
             output_dir = os.path.dirname(self.output_path)
-            # print(output_dir)
-            
+
             if output_dir:
                 os.makedirs(output_dir, exist_ok=True)
-                
+
         except PermissionError:
-            print(f"\033[1;31m\n[ERROR DE PERMISOS]\033[0m")
-            print(f"  - No tienes permisos para crear el directorio de salida: '{output_dir}'")
+            print("\033[1;31m\n[PERMISSION ERROR]\033[0m")
+            print(
+                "  - You do not have permission to create "
+                f"the output directory: '{output_dir}'"
+            )
             sys.exit(1)
         except Exception as e:
-            print(f"\033[1;31m\n[ERROR AL CREAR DIRECTORIO]\033[0m")
-            print(f"  - Ocurrió un error inesperado al crear '{output_dir}': {e}")
+            print("\033[1;31m\n[DIRECTORY ERROR]\033[0m")
+            print(
+                "  - An unexpected error occurred while "
+                f"creating '{output_dir}': {e}"
+            )
             sys.exit(1)
-    
+
     def write_output_json(self, result: List[Dict[str, Any]]) -> None:
         """
-        Escribe el resultado en el fichero JSON de salida.
+        Writes the result to the output JSON file.
         """
         try:
-            if not isinstance(result,(dict, list)):
-                raise TypeError("El resultado debe ser un dict o una lista de dicts.")
+            if not isinstance(result, (dict, list)):
+                raise TypeError(
+                    "Result must be a dict or a list of dicts."
+                )
 
-            with open(self.output_path, 'w', encoding = 'utf-8') as file:
-                json.dump(result, file, indent=4, ensure_ascii=False)   #ensure_ascii conserva caracteres UTF-8 correctamente.
+            with open(self.output_path, 'w', encoding='utf-8') as file:
+                json.dump(result, file, indent=4, ensure_ascii=False)
         except Exception as e:
-            print(f"[ERROR] No se pudo escribir el fichero de salida: {e}")
+            print("[ERROR] Could not write the output file:", e)
             sys.exit(1)
-    

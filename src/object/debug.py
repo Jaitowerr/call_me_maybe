@@ -1,18 +1,18 @@
+from typing import Optional, Any
+
+
 class Debug:
-    _instance = None
+    _instance: Optional["Debug"] = None
     _enabled = False
 
-    def __new__(cls):
+    def __new__(cls) -> "Debug":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def enable(self):
+    def enable(self) -> None:
         Debug._enabled = True
 
-    # def disable(self):
-    #     Debug._enabled = False
-
-    def dprint(self, *args, **kwargs):
+    def dprint(self, *args: Any, **kwargs: Any) -> None:
         if Debug._enabled:
             print(*args, **kwargs)
