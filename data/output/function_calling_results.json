@@ -47,14 +47,14 @@
         "prompt": "What is the square root of 16?",
         "fn_name": "fn_get_square_root",
         "args": {
-            "a": 16
+            "a": 16.0
         }
     },
     {
         "prompt": "Calculate the square root of 144",
         "fn_name": "fn_get_square_root",
         "args": {
-            "a": 144
+            "a": 144.0
         }
     },
     {
@@ -71,12 +71,12 @@
         "fn_name": "fn_substitute_string_with_regex",
         "args": {
             "source_string": "Programming is fun",
-            "regex": "([aeiouAEIOU])",
-            "replacement": "*"
+            "regex": "[^aeiouAEIOU]",
+            "replacement": "**"
         }
     },
     {
-        "prompt": "The dog sat on the mat with another dog",
+        "prompt": "Substitute the word 'cat' with 'dog' in 'The cat sat on the mat with another cat'",
         "fn_name": "fn_substitute_string_with_regex",
         "args": {
             "source_string": "The cat sat on the mat with another cat",

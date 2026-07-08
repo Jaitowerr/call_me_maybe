@@ -69,7 +69,7 @@ if __name__ == "__main__":
         list_func_def_tk.extend(f.get_signature_tk())
 
     #Extraemos los nombres de las funciones y los tokenizamos
-    fn_names_tk: List[List[int]] = [f.get_name_tk(ai_model.encode_text) for f in list_func_def]
+    # fn_names_tk: List[List[int]] = [f.get_name_tk(ai_model.encode_text) for f in list_func_def]
     
     # Bucle por cada prompt construido ya con el build_tk
     all_full_tk: List[List[int]] = []
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     result = []
     print("\n\n\n\n\n=== PRUEBA DE GENERACIÓN TOKEN-A-TOKEN (SIN RESTRICCIONES) ===")
     for full_tk, prompt in zip(all_full_tk, list_prompt):
-        answer = ai_model.respuesta_ia(full_tk, prompt.get_prompt_tk(), fn_names_tk)
+        answer = ai_model.respuesta_ia(full_tk, prompt.get_prompt_tk(), list_func_def)
         result.append(answer)
         print('--------')
         # break
