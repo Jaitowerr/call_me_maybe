@@ -16,7 +16,7 @@ class Func_def(BaseModel):
     parameters: Dict[str, Dict[str, str]]
     returns: Dict[str, str]
     signature: Optional[str] = None
-    signature_tk: Optional[List[int]] = None  # tokenized prompt text.
+    signature_tk: Optional[List[int]] = None
 
     @classmethod
     def load_func_def(cls, file_path: Path) -> List["Func_def"]:
