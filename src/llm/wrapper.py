@@ -324,7 +324,9 @@ class LLMWrapper():
                                 logits = mask
 
                 # Protect against an empty mask
-                valid_tokens = [i for i, score in enumerate(logits) if score != NEG_INF]
+                valid_tokens = [
+                    i for i, score in enumerate(logits) if score != NEG_INF
+                ]
                 if not valid_tokens:
                     dprint("[⚠️ WARNING] Mask empty. Forcing safe token.")
                     safe_token = get_id(' ') or get_id('Ġ') or 0
@@ -426,7 +428,8 @@ class LLMWrapper():
                                 )
                                 break
                         else:
-                            dprint(f"[⚠️ WARN] Invalid function '{clean}' detected.")
+                            dprint(f"[⚠️ WARN] Invalid function '{clean}'"
+                                   " detected.")
                     resto = partes[1] if len(partes) > 1 else ""
                     if (resto.startswith(', ')
                             or resto.startswith(',Ġ')):
