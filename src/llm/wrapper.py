@@ -125,22 +125,20 @@ class LLMWrapper():
         States:
             0: JSON start. Forces exact sequence '{"prompt": "'.
             1: Prompt content. Injects original prompt tokens
-            (escaping double quotes) and closes with '", '.
+            (escaping backslashes and double quotes) and closes
+            with '", '.
             2: Function key. Forces exact sequence '"name": "'.
-            3: Function name. Free generation until closing quote.
-            Identifies the chosen function to know its parameters.
-            35/36: Transition. Ensures a clean ', ' separator
-                after the function name.
-            4: parameters start. Forces exact sequence '"parameters": {'.
-            5: Dynamic parameters. For each parameter of the detected
-            function:
-            - Forces the exact key (e.g. '"param": ').
-            - Controls type: string forces quotes; number
-                allows digits.
-            - Manages commas and spaces between arguments.
-
-        Finishes automatically when brace_count reaches zero,
-        guaranteeing a closed JSON object and no extra text.
+            3: Function name. Restricted to valid names only.
+               When several names share a prefix, the REAL logits
+               of each candidate token are preserved so the model's
+               genuine preference decides between them (never a
+               flat / tied value).
+            35/36: Transition. Ensures a clean ', ' / ' ' separator.
+            4: Parameters start. Forces exact sequence
+               '"parameters": {'.
+            5: Dynamic parameters. Forces exact keys and manages
+               values (string / number), separators and closing
+               braces.
         """
         current_ids: List[int] = list(full_tk)
         generated_ids: List[int] = []
@@ -157,26 +155,25 @@ class LLMWrapper():
                 or self.tk_str_to_id.get("Ġ" + s)
             )
 
-        # Precompute tokenized names for fast comparison
-        fn_name_map: Dict[str, List[int]] = {}
-        for fd in func_defs:
-            fn_name_map[fd.name] = fd.get_name_tk(self.encode_text)
-
+        # --- Prepare prompt text (escape backslashes THEN quotes) ---
         raw_prompt = "".join(
             self.id_to_tk_str.get(t, "") for t in prompt_tk
         ).replace("Ġ", " ").replace("Ċ", "\n")
-
-        # safe_prompt = raw_prompt.replace('"', '\\"')
         safe_prompt = raw_prompt.replace('\\', '\\\\').replace('"', '\\"')
         prompt_tk = self.encode_text(safe_prompt)
 
-        # --- Fixed sequences ---
+        # --- Fixed token sequences ---
         header_tk = self.encode_text('{"prompt": "')
         prompt_close_tk = self.encode_text('", ')
         fn_key_tk = self.encode_text('"name": "')
         args_key_tk = self.encode_text('"parameters": {')
 
-        # --- State ---
+        # --- Precompute valid function names (token by token) ---
+        fn_name_map: Dict[str, List[int]] = {}
+        for fd in func_defs:
+            fn_name_map[fd.name] = fd.get_name_tk(self.encode_text)
+
+        # --- State vars ---
         estado: int = 0
         idx: int = 0
         fn_buffer: str = ""
@@ -192,20 +189,20 @@ class LLMWrapper():
             logits = self.get_logits(current_ids)
             mask = [NEG_INF] * len(logits)
 
-            # ---------- MASK ----------
+            # ---------- MASK LOGIC ----------
             if estado == 0:
                 if idx < len(header_tk):
                     mask[header_tk[idx]] = 0.0
                     logits = mask
 
             elif estado == 1:
-                total = len(prompt_tk) + len(prompt_close_tk)
+                total_len = len(prompt_tk) + len(prompt_close_tk)
                 if idx < len(prompt_tk):
                     mask[prompt_tk[idx]] = 0.0
                     logits = mask
-                elif idx < total:
-                    close_idx = idx - len(prompt_tk)
-                    mask[prompt_close_tk[close_idx]] = 0.0
+                elif idx < total_len:
+                    offset = idx - len(prompt_tk)
+                    mask[prompt_close_tk[offset]] = 0.0
                     logits = mask
 
             elif estado == 2:
@@ -214,7 +211,55 @@ class LLMWrapper():
                     logits = mask
 
             elif estado == 3:
-                pass  # free generation
+                # Force only valid function names, token by token
+                candidates = [
+                    name for name in fn_name_map
+                    if name.startswith(fn_buffer)
+                ]
+                if len(candidates) == 1:
+                    target_name = candidates[0]
+                    target_tk = fn_name_map[target_name]
+                    if idx < len(target_tk):
+                        mask[target_tk[idx]] = 0.0
+                        logits = mask
+                    else:
+                        q = get_id('"')
+                        if q is not None:
+                            mask[q] = 0.0
+                            logits = mask
+                elif len(candidates) > 1:
+                    # ✅ FIX: conservamos el logit REAL de cada candidato
+                    # en vez de aplanarlos todos a 0.0. Si no hacemos
+                    # esto, todos quedan "empatados" y el argmax final
+                    # desempata siempre por el índice de token más bajo,
+                    # ignorando por completo la preferencia real del
+                    # modelo (esto era lo que causaba que SIEMPRE se
+                    # eligiera la misma función, sin importar el prompt).
+                    raw_logits_snapshot = list(logits)
+                    possible_next_ids = set()
+                    for name in candidates:
+                        tk_list = fn_name_map[name]
+                        if idx < len(tk_list):
+                            possible_next_ids.add(tk_list[idx])
+                    for tid in possible_next_ids:
+                        mask[tid] = raw_logits_snapshot[tid]
+                    logits = mask
+
+                    diag = ", ".join(
+                        f"{self.id_to_tk_str.get(tid, '?')!r}="
+                        f"{raw_logits_snapshot[tid]:.3f}"
+                        for tid in possible_next_ids
+                    )
+                    dprint(
+                        f"    [DIAG] estado=3 idx={idx} buf={fn_buffer!r} "
+                        f"candidatos_raw_logits: {diag}"
+                    )
+                else:
+                    # No valid continuation left: force closing quote
+                    q = get_id('"')
+                    if q is not None:
+                        mask[q] = 0.0
+                        logits = mask
 
             elif estado == 35:
                 if idx == 0:
@@ -242,9 +287,8 @@ class LLMWrapper():
             elif estado == 5:
                 if func_detectada and arg_idx < len(arg_keys):
                     current_key = arg_keys[arg_idx]
-                    current_type = (
-                        func_detectada.parameters[current_key]['type']
-                    )
+                    param_info = func_detectada.parameters[current_key]
+                    current_type = param_info['type']
 
                     if arg_state == "key":
                         seq = self.encode_text(f'"{current_key}": ')
@@ -259,29 +303,27 @@ class LLMWrapper():
                                 if q is not None:
                                     mask[q] = 0.0
                                     logits = mask
+                            # else: free generation inside the string
                         elif current_type == 'number':
-                            pass  # free generation
+                            pass  # free generation of digits
 
                     elif arg_state == "sep":
-                        # ✅ Forzar ", " como secuencia única
                         comma_space_seq = self.encode_text(", ")
                         if arg_idx < len(arg_keys) - 1:
                             if arg_sub_idx < len(comma_space_seq):
                                 mask[comma_space_seq[arg_sub_idx]] = 0.0
                                 logits = mask
                             else:
-                                # Pasar al siguiente argumento
                                 arg_idx += 1
                                 arg_state = "key"
                                 arg_sub_idx = 0
                         else:
-                            # Último argumento: cerrar con }
                             q = get_id('}')
                             if q is not None:
                                 mask[q] = 0.0
                                 logits = mask
 
-                # ✅ Protección contra máscara vacía
+                # Protect against an empty mask
                 valid_tokens = [i for i, score in enumerate(logits) if score != NEG_INF]
                 if not valid_tokens:
                     dprint("[⚠️ WARNING] Mask empty. Forcing safe token.")
@@ -289,18 +331,16 @@ class LLMWrapper():
                     mask[safe_token] = 0.0
                     logits = mask
 
-            # ---------- CHOOSE TOKEN ----------
+            # ---------- SELECT TOKEN ----------
             top_id = max(range(len(logits)), key=lambda i: logits[i])
 
-            # INTERCEPT: last numeric arg cannot carry a comma
             # INTERCEPT: last numeric arg cannot carry a comma
             if (estado == 5 and arg_state == "value"
                     and func_detectada
                     and arg_idx == len(arg_keys) - 1):
                 current_key = arg_keys[arg_idx]
                 is_number = (
-                    func_detectada.parameters[current_key]['type']
-                    == 'number'
+                    func_detectada.parameters[current_key]['type'] == 'number'
                 )
                 if is_number:
                     token_str_check = self.id_to_tk_str.get(top_id, "")
@@ -316,8 +356,7 @@ class LLMWrapper():
                     and arg_idx < len(arg_keys) - 1):
                 current_key = arg_keys[arg_idx]
                 is_number = (
-                    func_detectada.parameters[current_key]['type']
-                    == 'number'
+                    func_detectada.parameters[current_key]['type'] == 'number'
                 )
                 if is_number:
                     token_str_check = self.id_to_tk_str.get(top_id, "")
@@ -331,9 +370,8 @@ class LLMWrapper():
             token_str = self.id_to_tk_str.get(top_id, "<​UNK>")
             generated_text += token_str
 
-            # ✅ Detectar errores en comillas
             if '""' in token_str or token_str.count('"') > 1:
-                dprint(f"[🚨 ALER] Multi-quote token: {repr(token_str)}")
+                dprint(f"[🚨 ALERT] Multi-quote token: {repr(token_str)}")
 
             dprint(
                 f"    [DEBUG] step={step:3d} estado={estado} "
@@ -354,7 +392,7 @@ class LLMWrapper():
                 dprint(f"    [DEBUG] JSON complete at step {step}")
                 break
 
-            # ---------- TRANSITIONS ----------
+            # ---------- STATE TRANSITIONS ----------
             if estado == 0:
                 idx += 1
                 if idx >= len(header_tk):
@@ -371,6 +409,7 @@ class LLMWrapper():
                     estado, idx, fn_buffer = 3, 0, ""
 
             elif estado == 3:
+                idx += 1
                 if '"' in token_str:
                     partes = token_str.split('"', 1)
                     fn_buffer += partes[0]
@@ -386,6 +425,8 @@ class LLMWrapper():
                                     f"{fd.name} args={arg_keys}"
                                 )
                                 break
+                        else:
+                            dprint(f"[⚠️ WARN] Invalid function '{clean}' detected.")
                     resto = partes[1] if len(partes) > 1 else ""
                     if (resto.startswith(', ')
                             or resto.startswith(',Ġ')):
@@ -418,9 +459,8 @@ class LLMWrapper():
             elif estado == 5:
                 if func_detectada and arg_idx < len(arg_keys):
                     current_key = arg_keys[arg_idx]
-                    current_type = (
-                        func_detectada.parameters[current_key]['type']
-                    )
+                    param_info = func_detectada.parameters[current_key]
+                    current_type = param_info['type']
 
                     if arg_state == "key":
                         seq = self.encode_text(f'"{current_key}": ')
@@ -436,16 +476,16 @@ class LLMWrapper():
                                 value_quote_open = True
                             else:
                                 if '"' in token_str:
-                                    quote_pos_in_token = token_str.rfind('"')
-                                    abs_quote_pos = (
+                                    quote_pos = token_str.rfind('"')
+                                    abs_pos = (
                                         len(generated_text) - len(token_str)
-                                        + quote_pos_in_token
+                                        + quote_pos
                                     )
-                                    is_escaped_quote = (
-                                        abs_quote_pos > 0
-                                        and generated_text[abs_quote_pos - 1] == '\\'
+                                    escaped = (
+                                        abs_pos > 0
+                                        and generated_text[abs_pos - 1] == '\\'
                                     )
-                                    if not is_escaped_quote:
+                                    if not escaped:
                                         after = token_str.rsplit('"', 1)[-1]
                                         if ',' in after:
                                             arg_idx += 1
@@ -466,19 +506,16 @@ class LLMWrapper():
                                 arg_idx = len(arg_keys)
 
                     elif arg_state == "sep":
-                        # ✅ Forzar ", " como secuencia única
                         comma_space_seq = self.encode_text(", ")
                         if arg_idx < len(arg_keys) - 1:
                             if arg_sub_idx < len(comma_space_seq):
                                 mask[comma_space_seq[arg_sub_idx]] = 0.0
                                 logits = mask
                             else:
-                                # Pasar al siguiente argumento
                                 arg_idx += 1
                                 arg_state = "key"
                                 arg_sub_idx = 0
                         else:
-                            # Último argumento: cerrar con }
                             q = get_id('}')
                             if q is not None:
                                 mask[q] = 0.0
