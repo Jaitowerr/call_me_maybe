@@ -16,6 +16,7 @@ if __name__ == "__main__":
 
     print("\n\033[1;36m[INFO]\033[0m Paths configured.")
     print(f"       Input:  {rutas.input_path}")
+    print(f"       functions_definition: {rutas.input_func_path}")
     print(f"       Output: {rutas.output_path}")
 
     input_path = Path(rutas.input_path)
@@ -28,7 +29,7 @@ if __name__ == "__main__":
     for i, p in enumerate(list_prompt):
         dprint(f"  [{i}] {p.prompt!r}")
 
-    func_defs_path = Path("data/input/functions_definition.json")
+    func_defs_path = Path(rutas.input_func_path)
     list_func_def = Func_def.load_func_def(func_defs_path)
 
     print(

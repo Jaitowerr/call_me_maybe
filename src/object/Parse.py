@@ -16,6 +16,9 @@ class Config(BaseModel):
     input_path: str = Field(
         default="data/input/function_calling_tests.json"
     )
+    input_func_path: str = Field(
+        default="data/input/functions_definition.json"
+    )
     output_path: str = Field(
         default="data/output/function_calling_results.json"
     )
@@ -59,6 +62,19 @@ class Config(BaseModel):
                     parsed_data["input_path"] = args[i + 1]
                     seen_flags.add("--input")
                     i += 2
+                
+                elif args[i] == "--functions_definition":
+                    if "--functions_definition" in seen_flags:
+                        raise ValueError(
+                            "The --functions_definition flag is duplicated."
+                        )
+                    if i + 1 >= len(args) or args[i + 1].startswith("--"):
+                        raise ValueError(
+                            "The --functions_definition flag requires a file path."
+                        )
+                    parsed_data["input_func_path"] = args[i + 1]
+                    seen_flags.add("--functions_definition")
+                    i += 2
                 elif args[i] == "--output":
                     if "--output" in seen_flags:
                         raise ValueError(
@@ -84,6 +100,7 @@ class Config(BaseModel):
                         f"Unrecognized argument: '{args[i]}'.\n"
                         "Usage: make run "
                         "[--input \"path/to/file.json\"] "
+                        "[--functions_definition \"path/to/file.json\"] "
                         "[--output \"path/to/file.json\"]"
                     )
 

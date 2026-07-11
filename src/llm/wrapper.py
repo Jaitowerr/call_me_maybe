@@ -157,6 +157,11 @@ class LLMWrapper():
                 or self.tk_str_to_id.get("Ġ" + s)
             )
 
+        # Precompute tokenized names for fast comparison
+        fn_name_map: Dict[str, List[int]] = {}
+        for fd in func_defs:
+            fn_name_map[fd.name] = fd.get_name_tk(self.encode_text)
+
         raw_prompt = "".join(
             self.id_to_tk_str.get(t, "") for t in prompt_tk
         ).replace("Ġ", " ").replace("Ċ", "\n")
