@@ -1,6 +1,16 @@
-# Makefile
-
 .PHONY: install run debug clean lint lint-strict
+
+UV := $(shell command -v uv 2>/dev/null || echo "$(HOME)/.local/bin/uv")
+
+check-uv:
+	@if ! command -v uv >/dev/null 2>&1 && [ ! -x "$(UV)" ]; then \
+		echo "\033[1;33muv no está instalado. Instalando...\033[0m"; \
+		curl -LsSf https://astral.sh/uv/install.sh | sh; \
+		echo "\033[1;32muv instalado correctamente.\033[0m"; \
+	fi
+
+install: check-uv
+	@$(UV) sync
 
 install:
 	@uv sync
