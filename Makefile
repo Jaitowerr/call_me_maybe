@@ -12,8 +12,6 @@ check-uv:
 install: check-uv
 	@$(UV) sync
 
-install:
-	@uv sync
 
 
 RUN_ARGS := $(filter-out run --,$(MAKECMDGOALS))
